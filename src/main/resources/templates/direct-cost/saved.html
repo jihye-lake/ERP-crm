@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('저장 완료')}"></head>
+<body>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    alert("저장 되었습니다. 총 직접비: ￦ " + (/*[[${total}]]*/ 0).toLocaleString('ko-KR'));
+    if (window.opener && !window.opener.closed) {
+        window.opener.location.reload();
+    }
+    window.close();
+    /*]]>*/
+</script>
+<p>저장이 완료되었습니다. 이 창은 자동으로 닫힙니다.</p>
+</body>
+</html>

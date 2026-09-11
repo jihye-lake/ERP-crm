@@ -1,0 +1,71 @@
+spring:
+  application:
+    name: erp-crm
+
+  profiles:
+    active: postgres     # DB 설치 전 먼저 확인해보고 싶다면 h2 프로필 권장 (README 참고)
+
+  thymeleaf:
+    cache: false
+
+server:
+  servlet:
+    session:
+      timeout: 60m        # 원본 ASP의 Session.Timeout = 60(분)과 동일
+
+# 통계(/statistics) 화면의 "연간 목표 대비 달성률" 게이지에 사용하는 연간 목표 매출액.
+# 실제 목표에 맞게 자유롭게 조정하세요 (단위: 원).
+erp:
+  annual-target-amount: 300000000
+
+---
+# ============================================================================
+# postgres 프로필 : 실제 운영을 가정한 기본 프로필.
+# PostgreSQL 설치 또는 docker compose up -d 로 띄운 뒤 사용하세요.
+# ============================================================================
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: jdbc:postgresql://localhost:5432/erp_crm
+    username: erp_user
+    password: erp_password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none      # 스키마는 schema.sql 로 직접 관리
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: true
+  sql:
+    init:
+      mode: always         # 매 실행시 schema.sql / data.sql 재실행 (데모용 - 운영에서는 Flyway 등 권장)
+      platform: postgres
+
+---
+# ============================================================================
+# h2 프로필 : DB 설치 없이 IntelliJ 실행 버튼만으로 바로 확인하고 싶을 때 사용
+#   실행 옵션: --spring.profiles.active=h2
+# ============================================================================
+spring:
+  config:
+    activate:
+      on-profile: h2
+  datasource:
+    url: jdbc:h2:mem:erp;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+  sql:
+    init:
+      mode: always
+      platform: h2
+  h2:
+    console:
+      enabled: true        # http://localhost:8080/h2-console 로 데이터 확인 가능

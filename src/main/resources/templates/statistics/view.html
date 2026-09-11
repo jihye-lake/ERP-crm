@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Nexora ERP - 통계')}"></head>
+<body>
+
+<div class="app-shell">
+    <aside th:replace="~{fragments/layout :: sidebar('statistics')}"></aside>
+
+    <div class="app-main">
+        <header class="app-topbar">
+            <div>
+                <h1 class="app-page-title">통계</h1>
+                <div class="app-page-subtitle">매출 · 직접비 현황 분석</div>
+            </div>
+            <div class="app-topbar-actions">
+                <form method="get" action="/statistics" class="d-inline-flex" style="gap:0.4rem;">
+                    <select name="year" class="form-select" style="width:auto;" onchange="this.form.submit()">
+                        <option th:each="y : ${stats.availableYears}" th:value="${y}" th:text="${y} + '년'"
+                                th:selected="${y == stats.selectedYear}"></option>
+                    </select>
+                </form>
+                <div th:replace="~{fragments/session-timer :: markup}"></div>
+            </div>
+        </header>
+
+        <main class="app-content">
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+                    <div class="kpi-card-label" th:text="${stats.selectedYear} + '년 매출'">연 매출</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(stats.yearRevenue, 0)}">0</span></div>
+                </div>
+                <div class="kpi-card accent-warning">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                    <div class="kpi-card-label" th:text="${stats.selectedYear} + '년 직접비'">연 직접비</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(stats.yearDirectCost, 0)}">0</span></div>
+                </div>
+                <div class="kpi-card accent-info">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-percent"></i></div>
+                    <div class="kpi-card-label">직접비 비율</div>
+                    <div class="kpi-card-value" th:text="${stats.yearCostPercent}">0.0%</div>
+                </div>
+                <div class="kpi-card accent-success">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-diagram-project"></i></div>
+                    <div class="kpi-card-label">프로젝트 수</div>
+                    <div class="kpi-card-value" th:text="${stats.projectCount} + ' 건'">0 건</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-bullseye"></i></div>
+                    <div class="kpi-card-label">연간 목표</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(stats.targetAmount, 0)}">0</span></div>
+                </div>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-panel">
+                    <div class="stat-panel-title">연간 목표 대비 누계 실적</div>
+                    <div class="gauge-wrap">
+                        <canvas id="gaugeChart"></canvas>
+                        <div class="gauge-value" th:text="${stats.achievementPercent} + '%'">0%</div>
+                    </div>
+                    <div class="gauge-caption">
+                        목표 ￦<span th:text="${#numbers.formatInteger(stats.targetAmount, 0)}"></span> 중
+                        실적 ￦<span th:text="${#numbers.formatInteger(stats.yearRevenue, 0)}"></span>
+                    </div>
+                </div>
+
+                <div class="stat-panel">
+                    <div class="stat-panel-title">클라이언트별 매출 비중</div>
+                    <canvas id="clientChart"></canvas>
+                </div>
+
+                <div class="stat-panel">
+                    <div class="stat-panel-title">프로젝트 종류별 매출 비중</div>
+                    <canvas id="typeChart"></canvas>
+                </div>
+
+                <div class="stat-panel stat-panel-wide">
+                    <div class="stat-panel-title">월별 매출 / 직접비</div>
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+
+                <div class="stat-panel">
+                    <div class="stat-panel-title">직접비 항목별 비중</div>
+                    <canvas id="categoryChart"></canvas>
+                </div>
+
+                <div class="stat-panel">
+                    <div class="stat-panel-title">연도별 매출/직접비 추이</div>
+                    <canvas id="yearlyChart"></canvas>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/session-timer :: script(${timeoutSeconds})}"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const chartData = /*[(${stats.chartDataJson})]*/ {};
+
+    const PRIMARY = '#4f46e5';
+    const ACCENT = '#0ea5e9';
+    const SUCCESS = '#16a34a';
+    const WARNING = '#f59e0b';
+    const PALETTE = ['#4f46e5', '#0ea5e9', '#8b5cf6', '#f59e0b', '#f43f5e', '#16a34a', '#06b6d4', '#a855f7'];
+
+    Chart.defaults.font.family = "'Pretendard', -apple-system, sans-serif";
+    Chart.defaults.color = '#6b7280';
+
+    // ---- 게이지 (연간 목표 달성률) ----
+    const achievement = Math.max(0, Number(chartData.achievementPercent) || 0);
+    const gaugeCapped = Math.min(100, achievement);
+    new Chart(document.getElementById('gaugeChart'), {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [gaugeCapped, 100 - gaugeCapped],
+                backgroundColor: [achievement >= 100 ? SUCCESS : PRIMARY, '#e9ecef'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            circumference: 180,
+            rotation: 270,
+            cutout: '72%',
+            plugins: {legend: {display: false}, tooltip: {enabled: false}},
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // ---- 클라이언트별 매출 비중 (도넛) ----
+    new Chart(document.getElementById('clientChart'), {
+        type: 'doughnut',
+        data: {
+            labels: chartData.clientLabels,
+            datasets: [{data: chartData.clientValues, backgroundColor: PALETTE, borderWidth: 1}]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {legend: {position: 'right', labels: {boxWidth: 12, font: {size: 11}}}}
+        }
+    });
+
+    // ---- 프로젝트 종류별 매출 비중 (도넛) ----
+    new Chart(document.getElementById('typeChart'), {
+        type: 'doughnut',
+        data: {
+            labels: chartData.typeLabels,
+            datasets: [{data: chartData.typeValues, backgroundColor: PALETTE, borderWidth: 1}]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {legend: {position: 'right', labels: {boxWidth: 12, font: {size: 11}}}}
+        }
+    });
+
+    // ---- 월별 매출/직접비 (그룹 바) ----
+    new Chart(document.getElementById('monthlyChart'), {
+        type: 'bar',
+        data: {
+            labels: chartData.months,
+            datasets: [
+                {label: '매출', data: chartData.monthRevenue, backgroundColor: PRIMARY},
+                {label: '직접비', data: chartData.monthDirectCost, backgroundColor: WARNING}
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {y: {beginAtZero: true, ticks: {callback: v => (v / 10000).toLocaleString() + '만'}}},
+            plugins: {legend: {position: 'top'}}
+        }
+    });
+
+    // ---- 직접비 항목별 비중 (가로 바) ----
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'bar',
+        data: {
+            labels: chartData.categoryLabels,
+            datasets: [{data: chartData.categoryValues, backgroundColor: PALETTE}]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            plugins: {legend: {display: false}},
+            scales: {x: {beginAtZero: true, ticks: {callback: v => (v / 10000).toLocaleString() + '만'}}}
+        }
+    });
+
+    // ---- 연도별 매출/직접비 추이 ----
+    new Chart(document.getElementById('yearlyChart'), {
+        type: 'bar',
+        data: {
+            labels: chartData.yearLabels,
+            datasets: [
+                {label: '매출', data: chartData.yearRevenue, backgroundColor: PRIMARY},
+                {label: '직접비', data: chartData.yearDirectCost, backgroundColor: WARNING}
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {y: {beginAtZero: true, ticks: {callback: v => (v / 10000).toLocaleString() + '만'}}},
+            plugins: {legend: {position: 'top'}}
+        }
+    });
+    /*]]>*/
+</script>
+
+</body>
+</html>

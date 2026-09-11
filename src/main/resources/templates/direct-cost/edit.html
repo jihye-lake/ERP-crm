@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('프로젝트별 직접비 항목')}"></head>
+<body>
+
+<div class="doc-screen">
+    <div class="doc-card" id="indexC">
+        <div class="doc-header">
+            <h1 class="doc-title">프로젝트별 직접비 항목</h1>
+            <span id="headerTotal" class="doc-total"></span>
+        </div>
+        <div class="doc-subtitle">프로젝트명 : (<span th:text="${project.projectCode}"></span>) <span th:text="${project.title}"></span></div>
+
+        <form method="post" th:action="@{/direct-cost/{id}(id=${project.id})}" th:object="${form}">
+            <input type="hidden" th:field="*{projectId}"/>
+            <div class="table-container">
+                <table class="table table-bordered">
+                    <colgroup>
+                        <col width="20%"><col width="15%"><col width="10%"><col width="7%"><col width="15%"><col width="*">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th class="v_mid">항목</th>
+                            <th class="v_mid">단가</th>
+                            <th class="v_mid">투여량</th>
+                            <th class="v_mid">일자</th>
+                            <th class="v_mid">금액</th>
+                            <th class="v_mid">비고</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="item, iStat : *{items}" th:class="${item.highlightClass}">
+                            <td class="v_mid" th:text="${item.label}"></td>
+                            <td class="v_mid">
+                                <input type="number" step="any" class="form-control calc-input" data-role="unitPrice"
+                                       th:field="*{items[__${iStat.index}__].unitPrice}"/>
+                            </td>
+                            <td class="v_mid">
+                                <input type="number" step="any" class="form-control calc-input" data-role="quantity"
+                                       th:field="*{items[__${iStat.index}__].quantity}"/>
+                            </td>
+                            <td class="v_mid">
+                                <input type="number" step="any" class="form-control calc-input" data-role="days"
+                                       th:field="*{items[__${iStat.index}__].days}"/>
+                            </td>
+                            <td class="v_mid">
+                                <input type="text" class="form-control text-end" data-role="display" disabled
+                                       th:value="${item.amount != null and item.amount.signum() != 0 ? '￦ ' + #numbers.formatInteger(item.amount, 0) : ''}"/>
+                                <input type="hidden" data-role="amount" th:field="*{items[__${iStat.index}__].amount}"/>
+                                <input type="hidden" th:field="*{items[__${iStat.index}__].category}"/>
+                            </td>
+                            <td class="v_mid">
+                                <input type="text" class="form-control" th:field="*{items[__${iStat.index}__].note}"/>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="row mt-3">
+                <div class="col col-md-9">
+                    <button type="submit" class="btn btn-primary w-100" onclick="return confirm('저장하시겠습니까?');">저장</button>
+                </div>
+                <div class="text-end col col-md-3">
+                    <div th:replace="~{fragments/session-timer :: markup}"></div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div th:replace="~{fragments/session-timer :: script(${timeoutSeconds})}"></div>
+
+<script>
+    function updateGrandTotal() {
+        let total = 0;
+        $('[data-role=amount]').each(function () {
+            total += parseFloat($(this).val()) || 0;
+        });
+        $('#headerTotal').text('총 직접비 : ￦ ' + total.toLocaleString('ko-KR'));
+    }
+
+    $(document).on('keyup', '.calc-input', function () {
+        const row = $(this).closest('tr');
+        const values = ['unitPrice', 'quantity', 'days'].map(function (role) {
+            return parseFloat(row.find('[data-role=' + role + ']').val()) || 0;
+        });
+        let product = 1, allZero = true;
+        values.forEach(function (v) {
+            if (v !== 0) {
+                allZero = false;
+                product *= v;
+            }
+        });
+        const amount = allZero ? 0 : product;
+        row.find('[data-role=display]').val('￦ ' + amount.toLocaleString('ko-KR'));
+        row.find('[data-role=amount]').val(amount);
+        updateGrandTotal();
+    });
+
+    $(document).ready(function () {
+        updateGrandTotal();
+    });
+</script>
+
+</body>
+</html>

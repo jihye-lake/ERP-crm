@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Nexora ERP 로그인')}"></head>
+<body>
+
+<div class="auth-screen">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <span class="auth-brand-mark">N</span>
+            <span class="auth-brand-text">Nexora<small>PROJECT ERP</small></span>
+        </div>
+
+        <h1 class="auth-title">다시 오신 것을 환영합니다</h1>
+        <p class="auth-subtitle">프로젝트 매출 · 직접비 관리 시스템에 로그인하세요.</p>
+
+        <p class="auth-message" th:if="${message}" th:text="${message}"></p>
+
+        <form method="post" action="/login">
+            <div class="mb-3">
+                <input type="text" class="form-control" name="username" placeholder="아이디" required autofocus/>
+            </div>
+            <div class="mb-3">
+                <input type="password" class="form-control" name="password" placeholder="비밀번호" required/>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">로그인</button>
+        </form>
+
+        <div class="auth-demo">
+            <strong>데모 계정</strong><br/>
+            admin / admin1234 (관리자)&nbsp;·&nbsp;editor / editor1234 (운영 담당자)&nbsp;·&nbsp;partner / partner1234 (파트너사)
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

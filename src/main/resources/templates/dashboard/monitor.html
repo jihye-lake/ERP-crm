@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Nexora ERP - 현황')}"></head>
+<body>
+
+<div class="app-shell">
+    <aside th:replace="~{fragments/layout :: sidebar('dashboard')}"></aside>
+
+    <div class="app-main">
+        <header class="app-topbar">
+            <div>
+                <h1 class="app-page-title">프로젝트 현황</h1>
+                <div class="app-page-subtitle">매출 조회 (제한된 보기)</div>
+            </div>
+            <div class="app-topbar-actions">
+                <div th:replace="~{fragments/session-timer :: markup}"></div>
+            </div>
+        </header>
+
+        <main class="app-content">
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+                    <div class="kpi-card-label" th:text="${form.searchType1} + '년 매출'">연 매출</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.yearRevenue, 0)}">0</span></div>
+                </div>
+                <div class="kpi-card accent-info">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-coins"></i></div>
+                    <div class="kpi-card-label" th:text="${form.searchType1} + '년 ' + ${form.searchType2} + '월 매출'">월 매출</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.monthRevenue, 0)}">0</span></div>
+                </div>
+            </div>
+
+            <div class="toolbar-card">
+                <form method="get" action="/monitor">
+                    <input type="hidden" name="curPage" value="1"/>
+                    <input type="hidden" name="pageSize" th:value="${form.pageSize}"/>
+                    <div class="input-group" style="max-width:26rem;">
+                        <select name="searchType1" class="form-select">
+                            <option th:each="y : ${summary.availableYears}" th:value="${y}" th:text="${y}"
+                                    th:selected="${y == form.searchType1}"></option>
+                        </select>
+                        <select name="searchType2" class="form-select">
+                            <option th:each="m : ${monthOptions}" th:value="${m}" th:text="${m}"
+                                    th:selected="${m == form.searchType2}"></option>
+                        </select>
+                        <button type="submit" name="surType" value="1" class="btn btn-default">조회</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="table-card">
+                <div class="table-card-header">
+                    <span class="table-card-title">프로젝트 목록</span>
+                    <span class="app-page-subtitle" th:text="'전체 ' + ${page.totalElements} + '건'">0건</span>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <colgroup><col width="10%"><col width="10%"><col width="*"><col width="20%"><col width="15%"></colgroup>
+                        <thead>
+                            <tr>
+                                <th class="v_mid">Kcode</th>
+                                <th class="v_mid">프로젝트코드</th>
+                                <th class="v_mid">제목</th>
+                                <th class="v_mid">클라이언트</th>
+                                <th class="v_mid">매출 금액(부가세별도)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:if="${page.totalElements == 0}">
+                                <td colspan="5">프로젝트 현황이 존재하지 않습니다.</td>
+                            </tr>
+                            <tr th:each="row : ${page.content}">
+                                <td class="v_mid" th:text="${row.kcode}"></td>
+                                <td class="v_mid" th:text="${row.projectCode}"></td>
+                                <td class="v_mid" style="word-break:break-word; white-space:normal;" th:text="${row.title}"></td>
+                                <td class="v_mid" th:text="${row.clientName}"></td>
+                                <td class="v_mid text-end">￦ <span th:text="${#numbers.formatInteger(row.revenueAmount, 0)}"></span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <nav th:if="${page.totalPages > 1}" class="table-card-header">
+                    <a th:if="${page.hasPrevious()}" class="btn btn-sm btn-outline-secondary"
+                       th:href="@{/monitor(curPage=${page.number}, pageSize=${form.pageSize}, searchType1=${form.searchType1}, searchType2=${form.searchType2})}">이전</a>
+                    <span class="mx-2" th:text="${page.number + 1} + ' / ' + ${page.totalPages}"></span>
+                    <a th:if="${page.hasNext()}" class="btn btn-sm btn-outline-secondary"
+                       th:href="@{/monitor(curPage=${page.number + 2}, pageSize=${form.pageSize}, searchType1=${form.searchType1}, searchType2=${form.searchType2})}">다음</a>
+                </nav>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/session-timer :: script(${timeoutSeconds})}"></div>
+
+</body>
+</html>

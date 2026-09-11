@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Nexora ERP')}"></head>
+<body>
+
+<div class="app-shell">
+    <aside th:replace="~{fragments/layout :: sidebar('dashboard')}"></aside>
+
+    <div class="app-main">
+        <header class="app-topbar">
+            <div>
+                <h1 class="app-page-title">대시보드</h1>
+                <div class="app-page-subtitle">프로젝트 매출 및 직접비 현황</div>
+            </div>
+            <div class="app-topbar-actions">
+                <div th:replace="~{fragments/session-timer :: markup}"></div>
+            </div>
+        </header>
+
+        <main class="app-content">
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+                    <div class="kpi-card-label" th:text="${form.searchType1} + '년 매출'">연 매출</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.yearRevenue, 0)}">0</span></div>
+                </div>
+                <div class="kpi-card accent-warning">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                    <div class="kpi-card-label" th:text="${form.searchType1} + '년 직접비'">연 직접비</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.yearDirectCost, 0)}">0</span></div>
+                    <div class="kpi-card-sub" th:text="'직접비 비율 ' + ${yearCostPercent}">직접비 비율 0.0%</div>
+                </div>
+                <div class="kpi-card accent-info">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-coins"></i></div>
+                    <div class="kpi-card-label" th:text="${form.searchType1} + '년 ' + ${form.searchType2} + '월 매출'">월 매출</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.monthRevenue, 0)}">0</span></div>
+                </div>
+                <div class="kpi-card accent-warning">
+                    <div class="kpi-card-icon"><i class="fa-solid fa-receipt"></i></div>
+                    <div class="kpi-card-label" th:text="${form.searchType1} + '년 ' + ${form.searchType2} + '월 직접비'">월 직접비</div>
+                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.monthDirectCost, 0)}">0</span></div>
+                    <div class="kpi-card-sub" th:text="'직접비 비율 ' + ${monthCostPercent}">직접비 비율 0.0%</div>
+                </div>
+            </div>
+
+            <div class="toolbar-card">
+                <div class="row g-2 align-items-center">
+                    <div class="col col-md-5" th:if="${isAdmin}">
+                        <form method="post" action="/projects/upload" enctype="multipart/form-data">
+                            <div class="input-group">
+                                <input type="file" class="form-control" name="Project_Files" accept=".xls,.xlsx" required/>
+                                <button type="submit" class="btn btn-success"
+                                        onclick="return confirm('프로젝트를 일괄 업로드 하시겠습니까?');">
+                                    <i class="fa-solid fa-upload"></i>&nbsp;업로드
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="col" th:classappend="${isAdmin} ? 'col-md-7' : 'col-md-12'">
+                        <form method="get" action="/" id="searchForm">
+                            <input type="hidden" name="curPage" value="1"/>
+                            <input type="hidden" name="pageSize" th:value="${form.pageSize}"/>
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="searchProject" th:value="${form.searchProject}"
+                                       placeholder="프로젝트코드 / Kcode 검색"/>
+                                <button type="submit" name="surType" value="2" class="btn btn-info">
+                                    <i class="fa-solid fa-magnifying-glass"></i>
+                                </button>
+                                <a th:if="${form.searchProject != null and !form.searchProject.isBlank()}" href="/" class="btn btn-dark">초기화</a>
+
+                                <select name="searchType1" class="form-select" style="max-width:6.5rem;">
+                                    <option th:each="y : ${summary.availableYears}" th:value="${y}" th:text="${y}"
+                                            th:selected="${y == form.searchType1}"></option>
+                                </select>
+                                <select name="searchType2" class="form-select" style="max-width:5.5rem;">
+                                    <option th:each="m : ${monthOptions}" th:value="${m}" th:text="${m}"
+                                            th:selected="${m == form.searchType2}"></option>
+                                </select>
+                                <button type="submit" name="surType" value="1" class="btn btn-default">기간 조회</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-card">
+                <div class="table-card-header">
+                    <span class="table-card-title">프로젝트 목록</span>
+                    <span class="app-page-subtitle" th:text="'전체 ' + ${page.totalElements} + '건'">0건</span>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <colgroup>
+                            <col width="5%"><col width="7%"><col width="*">
+                            <col width="5%"><col width="5%">
+                            <col width="12%"><col width="15%"><col width="15%"><col width="3%">
+                            <col th:if="${isAdmin}" width="5%">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th class="v_mid">Kcode</th>
+                                <th class="v_mid">프로젝트코드</th>
+                                <th class="v_mid">제목</th>
+                                <th class="v_mid">종류</th>
+                                <th class="v_mid">담당자</th>
+                                <th class="v_mid">클라이언트</th>
+                                <th class="v_mid">매출 금액(부가세별도)</th>
+                                <th class="v_mid">직접비(부가세 별도)</th>
+                                <th class="v_mid">직접비 비율(%)</th>
+                                <th class="v_mid" th:if="${isAdmin}">삭제</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:if="${page.totalElements == 0}">
+                                <td colspan="10">프로젝트 현황이 존재하지 않습니다.</td>
+                            </tr>
+                            <tr th:each="row : ${page.content}">
+                                <td class="v_mid text-center">
+                                    <span th:if="${!isAdmin or !row.requiresPartnerCode}" th:text="${row.kcode}"></span>
+                                    <a th:if="${isAdmin and row.requiresPartnerCode and row.kcode != null and !row.kcode.isBlank()}"
+                                       class="kcode-link open-kcode-modal" th:text="${row.kcode}"
+                                       th:attr="data-id=${row.id},data-kcode=${row.kcode}" href="javascript:void(0);"></a>
+                                    <a th:if="${isAdmin and row.requiresPartnerCode and (row.kcode == null or row.kcode.isBlank())}"
+                                       class="kcode-empty open-kcode-modal"
+                                       th:attr="data-id=${row.id},data-kcode=''" href="javascript:void(0);">
+                                        <i class="fa-solid fa-circle-plus"></i>입력</a>
+                                </td>
+                                <td class="v_mid" th:text="${row.projectCode}"></td>
+                                <td class="v_mid" style="word-break:break-word; white-space:normal;" th:text="${row.title}"></td>
+                                <td class="v_mid" th:text="${row.projectType}"></td>
+                                <td class="v_mid" th:text="${row.manager}"></td>
+                                <td class="v_mid" th:text="${row.clientName}"></td>
+                                <td class="v_mid text-end">
+                                    <div class="input-group" th:if="${isAdmin}">
+                                        <input type="text" class="form-control text-end" th:id="'Rcost_' + ${row.id}" maxlength="20"
+                                               th:value="'￦ ' + ${#numbers.formatInteger(row.revenueAmount, 0)}" style="margin:0rem;width:4rem;" disabled/>
+                                        <input type="hidden" th:id="'cost_' + ${row.id}" th:value="${row.revenueAmount}"/>
+                                        <button type="button" class="btn btn-default edit-revenue-btn" th:id="'btn_CEdit_' + ${row.id}"
+                                                th:attr="data-id=${row.id}">수정</button>
+                                    </div>
+                                    <span th:unless="${isAdmin}" th:text="'￦ ' + ${#numbers.formatInteger(row.revenueAmount, 0)}"></span>
+                                </td>
+                                <td class="v_mid text-end">
+                                    ￦ <span th:text="${#numbers.formatInteger(row.directCostTotal, 0)}"></span>
+                                    <a class="btn btn-default btn-sm" th:href="@{/direct-cost/{id}(id=${row.id})}" target="_blank">입력</a>
+                                </td>
+                                <td class="v_mid" th:text="${T(com.nexora.erp.web.PercentUtil).format(row.directCostTotal, row.revenueAmount)}"></td>
+                                <td class="v_mid" th:if="${isAdmin}">
+                                    <button type="button" class="btn btn-warning btn-sm delete-project-btn"
+                                            th:attr="data-id=${row.id},data-code=${row.projectCode},data-title=${row.title}">삭제</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="6" class="v_mid Bd">합계 (검색 결과 전체)</td>
+                                <td class="v_mid text-end">￦ <span th:text="${#numbers.formatInteger(summary.filteredRevenueTotal, 0)}"></span></td>
+                                <td class="v_mid text-end">￦ <span th:text="${#numbers.formatInteger(summary.filteredDirectCostTotal, 0)}"></span></td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <nav th:if="${page.totalPages > 1}" class="table-card-header">
+                    <a th:if="${page.hasPrevious()}" class="btn btn-sm btn-outline-secondary"
+                       th:href="@{/(curPage=${page.number}, pageSize=${form.pageSize}, surType=${form.surType}, searchProject=${form.searchProject}, searchType1=${form.searchType1}, searchType2=${form.searchType2})}">이전</a>
+                    <span class="mx-2" th:text="${page.number + 1} + ' / ' + ${page.totalPages}"></span>
+                    <a th:if="${page.hasNext()}" class="btn btn-sm btn-outline-secondary"
+                       th:href="@{/(curPage=${page.number + 2}, pageSize=${form.pageSize}, surType=${form.surType}, searchProject=${form.searchProject}, searchType1=${form.searchType1}, searchType2=${form.searchType2})}">다음</a>
+                </nav>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Kcode 변경 모달 -->
+<div class="modal fade" id="kcodeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" style="font-weight:bold;">Kcode 변경</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modalTargetIdx" value=""/>
+                <input type="text" class="form-control" id="modalKcodeValue" placeholder="K26-000" maxlength="20" autocomplete="off"/>
+            </div>
+            <div class="modal-footer" style="padding:0.5rem 0.75rem;">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="javascript:updateKcode();">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/session-timer :: script(${timeoutSeconds})}"></div>
+
+<script th:inline="javascript">
+    // 원본에서 onclick 속성에 프로젝트명 등 자유 텍스트를 직접 이어붙이던 방식은
+    // 값에 따옴표가 포함되면 깨질 수 있어, data-* 속성 + 이벤트 위임 방식으로 대체했습니다.
+
+    $(document).on('click', '.delete-project-btn', function () {
+        const id = $(this).data('id');
+        const code = $(this).data('code');
+        const title = $(this).data('title');
+
+        if (!confirm("프로젝트코드 : " + code + "\n프로젝트명 : " + title + "\n\n확인을 누르시면 위 프로젝트가 삭제됩니다. 정말 삭제하시겠습니까?")) {
+            return;
+        }
+        $.ajax({url: "/projects/" + id + "/delete", type: "POST", dataType: "html"})
+            .done(function (data) {
+                alert(data === "Y" ? "프로젝트가 삭제되었습니다." : "프로젝트 삭제가 실패 되었습니다.");
+                location.reload();
+            })
+            .fail(function () {
+                alert("삭제 처리 중 문제가 발생했습니다.");
+            });
+    });
+
+    let editCounter = 0;
+    $(document).on('click', '.edit-revenue-btn', function () {
+        const id = $(this).data('id');
+        editCounter++;
+        const input = $("#Rcost_" + id);
+        if (editCounter % 2 === 1) {
+            input.prop("disabled", false);
+            input.val($("#cost_" + id).val());
+            $("#btn_CEdit_" + id).text("확인").removeClass().addClass("btn btn-danger btn-sm");
+        } else {
+            $("#cost_" + id).val(input.val());
+            if (!confirm("매출금액을 수정하시겠습니까?")) {
+                return;
+            }
+            $.ajax({url: "/projects/" + id + "/revenue", type: "POST", dataType: "html", data: {Cost: input.val()}})
+                .done(function (data) {
+                    alert(data === "Y" ? "매출 금액이 업데이트 되었습니다." : "매출 금액 업데이트에 실패하였습니다.");
+                    location.reload();
+                })
+                .fail(function () {
+                    alert("확인중에 문제가 발생했습니다.\n담당자 분께 문의해 주세요.");
+                });
+        }
+    });
+
+    $(document).on('click', '.open-kcode-modal', function () {
+        $("#modalTargetIdx").val($(this).data('id'));
+        $("#modalKcodeValue").val($(this).data('kcode'));
+        new bootstrap.Modal(document.getElementById('kcodeModal')).show();
+    });
+
+    function updateKcode() {
+        const id = $("#modalTargetIdx").val();
+        const kcode = $("#modalKcodeValue").val().trim().toUpperCase();
+        if (!confirm("Kcode 정보를 수정하시겠습니까?")) {
+            return;
+        }
+        $.ajax({url: "/projects/" + id + "/kcode", type: "POST", dataType: "html", data: {Kcode: kcode}})
+            .done(function (data) {
+                if (data === "Y") {
+                    alert("Kcode가 정상적으로 업데이트 되었습니다.");
+                    location.reload();
+                } else {
+                    alert("Kcode 업데이트에 실패하였습니다.");
+                }
+            })
+            .fail(function () {
+                alert("통신 중 에러가 발생했습니다.\n담당자에게 문의해 주세요.");
+            });
+    }
+</script>
+
+</body>
+</html>

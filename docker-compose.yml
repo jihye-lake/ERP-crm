@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: erp-crm-postgres
+    environment:
+      POSTGRES_DB: erp_crm
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: erp_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - erp_crm_pgdata:/var/lib/postgresql/data
+
+volumes:
+  erp_crm_pgdata:
