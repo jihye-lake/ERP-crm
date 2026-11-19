@@ -3,7 +3,7 @@ spring:
     name: erp-crm
 
   profiles:
-    active: postgres     # DB 설치 전 먼저 확인해보고 싶다면 h2 프로필 권장 (README 참고)
+    active: ${SPRING_PROFILES_ACTIVE:postgres}   # DB 없이 화면만 볼 때는 h2
 
   thymeleaf:
     cache: false
@@ -11,61 +11,64 @@ spring:
 server:
   servlet:
     session:
-      timeout: 60m        # 원본 ASP의 Session.Timeout = 60(분)과 동일
+      timeout: 60m        # 원본 ASP Session.Timeout = 60(분)
 
-# 통계(/statistics) 화면의 "연간 목표 대비 달성률" 게이지에 사용하는 연간 목표 매출액.
-# 실제 목표에 맞게 자유롭게 조정하세요 (단위: 원).
+# 통계(/statistics) "연간 목표 대비 달성률" 게이지 기준 금액 (원)
 erp:
-  annual-target-amount: 300000000
+  annual-target-amount: ${ERP_ANNUAL_TARGET:300000000}
 
 ---
-# ============================================================================
-# postgres 프로필 : 실제 운영을 가정한 기본 프로필.
-# PostgreSQL 설치 또는 docker compose up -d 로 띄운 뒤 사용하세요.
-# ============================================================================
+# ----------------------------------------------------------------------------
+# postgres : 기본 프로필
+#   접속 정보는 환경변수로 덮어쓸 수 있음 (docker compose에서는 compose 파일 값 사용)
+#   스키마/시드는 Flyway(db/migration)로 관리
+# ----------------------------------------------------------------------------
 spring:
   config:
     activate:
       on-profile: postgres
   datasource:
-    url: jdbc:postgresql://localhost:5432/erp_crm
-    username: erp_user
-    password: erp_password
-    driver-class-name: org.postgresql.Driver
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/erp_crm}
+    username: ${DB_USERNAME:erp_user}
+    password: ${DB_PASSWORD:erp_password}
   jpa:
     hibernate:
-      ddl-auto: none      # 스키마는 schema.sql 로 직접 관리
-    properties:
-      hibernate:
-        format_sql: true
-    show-sql: true
+      ddl-auto: none       # 스키마는 Flyway가 관리
+    open-in-view: false
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   sql:
     init:
-      mode: always         # 매 실행시 schema.sql / data.sql 재실행 (데모용 - 운영에서는 Flyway 등 권장)
-      platform: postgres
+      mode: never
 
 ---
-# ============================================================================
-# h2 프로필 : DB 설치 없이 IntelliJ 실행 버튼만으로 바로 확인하고 싶을 때 사용
-#   실행 옵션: --spring.profiles.active=h2
-# ============================================================================
+# ----------------------------------------------------------------------------
+# h2 : DB 설치 없이 바로 띄워보는 용도 (앱 끄면 데이터 사라짐)
+#   실행: --spring.profiles.active=h2
+#   마이그레이션 SQL이 PostgreSQL 문법이라 Flyway는 끄고 H2용 스키마로 초기화
+# ----------------------------------------------------------------------------
 spring:
   config:
     activate:
       on-profile: h2
   datasource:
     url: jdbc:h2:mem:erp;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
     username: sa
     password: ""
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    open-in-view: false
+  flyway:
+    enabled: false
   sql:
     init:
       mode: always
-      platform: h2
+      schema-locations: classpath:schema-h2.sql
+      data-locations: classpath:db/migration/V2__demo_seed.sql
+      encoding: UTF-8      # Windows + Java 17 기본 문자셋이 MS949라 명시 안 하면 시드 한글 깨짐
   h2:
     console:
-      enabled: true        # http://localhost:8080/h2-console 로 데이터 확인 가능
+      enabled: true        # http://localhost:8080/h2-console  (JDBC URL: jdbc:h2:mem:erp)

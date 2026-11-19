@@ -12,5 +12,5 @@ GRANT ALL PRIVILEGES ON DATABASE erp_crm TO erp_user;
 GRANT ALL ON SCHEMA public TO erp_user;
 ALTER DATABASE erp_crm OWNER TO erp_user;
 
--- 이후 애플리케이션을 처음 실행하면 schema.sql / data.sql이 자동으로 실행되어
--- 테이블 생성과 데모 데이터 입력이 이루어집니다 (application.yml 참고).
+-- 이후 앱을 처음 실행하면 Flyway가 src/main/resources/db/migration 의 V1~V3를 순서대로 적용해서
+-- 테이블 생성 + 데모 데이터 입력까지 해줌. (두 번째 실행부터는 이미 적용된 건 건너뜀)

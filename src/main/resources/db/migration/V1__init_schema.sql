@@ -9,11 +9,10 @@
 --  - 프로젝트코드 문자열에서 매번 substring으로 연/월을 파싱하던 방식을
 --    generated column(year_code, month_code)으로 대체해 인덱싱/검색을 단순화했습니다.
 --  - 프로젝트 IDX는 SQL Server의 uniqueidentifier 기본값 대신 gen_random_uuid()를 사용합니다.
+--
+-- 처음엔 schema.sql을 매 실행마다 DROP 후 재생성했는데, 데이터가 계속 날아가서 Flyway로 옮김.
+-- 이미 적용된 V 파일은 수정하지 말고 새 버전 파일을 추가할 것.
 -- ============================================================================
-
-DROP TABLE IF EXISTS direct_cost_item;
-DROP TABLE IF EXISTS project;
-DROP TABLE IF EXISTS admin_account;
 
 CREATE TABLE admin_account (
     id            BIGSERIAL PRIMARY KEY,

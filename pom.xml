@@ -58,6 +58,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- DB 스키마 버전 관리 (schema.sql 재실행 방식 대체) -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <!-- 엑셀 프로젝트 일괄 업로드 (원본 DEXT.FileUpload + Jet OLEDB 대체) -->
         <dependency>
             <groupId>org.apache.poi</groupId>
@@ -87,6 +93,22 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 통합 테스트는 H2가 아니라 실제 PostgreSQL 컨테이너로 검증 (Docker 필요, 없으면 skip) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
 
