@@ -1,3 +1,4 @@
+# docker compose up -d --build  →  http://localhost:8080  (admin / admin1234)
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,6 +11,26 @@ services:
       - "5432:5432"
     volumes:
       - erp_crm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_crm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    container_name: erp-crm-app
+    depends_on:
+      postgres:
+        condition: service_healthy   # DB 뜨기 전에 앱이 먼저 붙으려다 죽는 것 방지
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      DB_URL: jdbc:postgresql://postgres:5432/erp_crm
+      DB_USERNAME: erp_user
+      DB_PASSWORD: erp_password
+      TZ: Asia/Seoul
+    ports:
+      - "8080:8080"
 
 volumes:
   erp_crm_pgdata:
