@@ -9,6 +9,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 /**
  * 원본의 IP 화이트리스트 자동 로그인 + 소스코드에 하드코딩된 평문 비밀번호 비교 로직을
@@ -56,9 +57,11 @@ public class SecurityConfig {
                 .invalidSessionUrl("/login?expired=1")
                 .maximumSessions(1)
             )
-            // 엑셀 업로드/직접비 저장은 AJAX/폼 POST 위주이며 원본에도 CSRF 토큰이 없던 구조라
-            // 우선 비활성화합니다. 운영 반영 시 CSRF 토큰 적용을 권장합니다.
-            .csrf(csrf -> csrf.disable());
+            // 처음엔 원본 AJAX 호환 때문에 꺼뒀다가 다시 켬.
+            // 폼은 th:action 으로 토큰 자동 삽입, AJAX는 layout.html 의 $.ajaxSetup 에서 헤더로 전송.
+            // H2 콘솔(로컬 확인용)만 예외.
+            .csrf(csrf -> csrf.ignoringRequestMatchers(new AntPathRequestMatcher("/h2-console/**")))
+            .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())); // H2 콘솔이 iframe 사용
 
         return http.build();
     }

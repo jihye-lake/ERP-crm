@@ -15,7 +15,7 @@
 
         <p class="auth-message" th:if="${message}" th:text="${message}"></p>
 
-        <form method="post" action="/login">
+        <form method="post" th:action="@{/login}">
             <div class="mb-3">
                 <input type="text" class="form-control" name="username" placeholder="아이디" required autofocus/>
             </div>
