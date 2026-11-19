@@ -8,13 +8,18 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
 public interface ProjectRepository extends JpaRepository<Project, UUID> {
 
+    @Query("select p.projectCode from Project p where p.projectCode in :codes")
+    List<String> findExistingProjectCodes(@Param("codes") Collection<String> codes);
+
     String LIST_SELECT =
-            "select p.id as id, p.project_code as projectCode, p.kcode as kcode, p.title as title, " +
+            // UUID를 그대로 반환하면 DB/드라이버에 따라 byte[]로 넘어와 프로젝션 변환이 실패하므로 문자열로 캐스팅
+            "select cast(p.id as varchar) as id,p.project_code as projectCode, p.kcode as kcode, p.title as title, " +
             "p.project_type as projectType, p.manager as manager, p.client_name as clientName, " +
             "p.requires_partner_code as requiresPartnerCode, p.revenue_amount as revenueAmount, " +
             "coalesce((select sum(d.amount) from direct_cost_item d where d.project_id = p.id), 0) as directCostTotal " +
