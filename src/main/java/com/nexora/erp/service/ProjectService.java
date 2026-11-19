@@ -1,5 +1,6 @@
 package com.nexora.erp.service;
 
+import com.nexora.erp.domain.AuditAction;
 import com.nexora.erp.domain.Project;
 import com.nexora.erp.repository.DirectCostItemRepository;
 import com.nexora.erp.repository.ProjectListRow;
@@ -26,10 +27,13 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final DirectCostItemRepository directCostItemRepository;
+    private final AuditLogService auditLogService;
 
-    public ProjectService(ProjectRepository projectRepository, DirectCostItemRepository directCostItemRepository) {
+    public ProjectService(ProjectRepository projectRepository, DirectCostItemRepository directCostItemRepository,
+                          AuditLogService auditLogService) {
         this.projectRepository = projectRepository;
         this.directCostItemRepository = directCostItemRepository;
+        this.auditLogService = auditLogService;
     }
 
     public Page<ProjectListRow> search(ProjectSearchForm form) {
@@ -65,15 +69,24 @@ public class ProjectService {
     }
 
     @Transactional
-    public void deleteProject(UUID id) {
-        directCostItemRepository.deleteByProjectId(id);
-        projectRepository.deleteById(id);
+    public boolean deleteProject(UUID id) {
+        return projectRepository.findById(id)
+                .map(project -> {
+                    auditLogService.record(project, AuditAction.PROJECT_DELETE,
+                            project.getTitle() + " / 매출 " + plain(project.getRevenueAmount()), null);
+                    directCostItemRepository.deleteByProjectId(id);
+                    projectRepository.delete(project);
+                    return true;
+                })
+                .orElse(false);
     }
 
     @Transactional
     public boolean updateRevenueAmount(UUID id, BigDecimal amount) {
         return projectRepository.findById(id)
                 .map(project -> {
+                    auditLogService.record(project, AuditAction.REVENUE_UPDATE,
+                            plain(project.getRevenueAmount()), plain(amount));
                     project.setRevenueAmount(amount);
                     return true;
                 })
@@ -84,6 +97,7 @@ public class ProjectService {
     public boolean updateKcode(UUID id, String kcode) {
         return projectRepository.findById(id)
                 .map(project -> {
+                    auditLogService.record(project, AuditAction.KCODE_UPDATE, project.getKcode(), kcode);
                     project.setKcode(kcode);
                     return true;
                 })
@@ -93,6 +107,11 @@ public class ProjectService {
     @Transactional
     public Project save(Project project) {
         return projectRepository.save(project);
+    }
+
+    /** 7100000.00 → "7100000" 처럼 이력에 보기 좋게 남기기 위함 */
+    static String plain(BigDecimal value) {
+        return value == null ? null : value.stripTrailingZeros().toPlainString();
     }
 
     private static BigDecimal nz(BigDecimal value) {

@@ -1,5 +1,6 @@
 package com.nexora.erp.service;
 
+import com.nexora.erp.domain.AuditAction;
 import com.nexora.erp.domain.CostCategory;
 import com.nexora.erp.domain.DirectCostItem;
 import com.nexora.erp.domain.Project;
@@ -26,10 +27,13 @@ public class DirectCostService {
 
     private final DirectCostItemRepository directCostItemRepository;
     private final ProjectRepository projectRepository;
+    private final AuditLogService auditLogService;
 
-    public DirectCostService(DirectCostItemRepository directCostItemRepository, ProjectRepository projectRepository) {
+    public DirectCostService(DirectCostItemRepository directCostItemRepository, ProjectRepository projectRepository,
+                             AuditLogService auditLogService) {
         this.directCostItemRepository = directCostItemRepository;
         this.projectRepository = projectRepository;
+        this.auditLogService = auditLogService;
     }
 
     /** 카테고리 27개 전체를 순서대로 반환 (저장된 값이 없으면 빈 값으로 채움) */
@@ -82,6 +86,7 @@ public class DirectCostService {
         Map<CostCategory, DirectCostItem> existing = directCostItemRepository.findByProjectId(projectId).stream()
                 .collect(Collectors.toMap(DirectCostItem::getCategory, item -> item, (a, b) -> a, () -> new EnumMap<>(CostCategory.class)));
 
+        BigDecimal totalBefore = totalFor(projectId);
         BigDecimal grandTotal = BigDecimal.ZERO;
 
         for (DirectCostItemForm form : items) {
@@ -112,6 +117,10 @@ public class DirectCostService {
             item.setNote(form.getNote());
             directCostItemRepository.save(item);
         }
+
+        // 항목별로 다 남기면 27줄씩 쌓여서 보기 힘들어서, 저장 단위로 합계 변화만 기록
+        auditLogService.record(project, AuditAction.DIRECT_COST_UPDATE,
+                ProjectService.plain(totalBefore), ProjectService.plain(totalFor(projectId)));
 
         return grandTotal;
     }

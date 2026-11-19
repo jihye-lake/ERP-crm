@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Nexora ERP - 변경 이력')}"></head>
+<body>
+
+<div class="app-shell">
+    <aside th:replace="~{fragments/layout :: sidebar('audit')}"></aside>
+
+    <div class="app-main">
+        <header class="app-topbar">
+            <div>
+                <h1 class="app-page-title">변경 이력</h1>
+                <div class="app-page-subtitle">매출 · Kcode · 직접비 · 삭제 · 업로드 기록</div>
+            </div>
+            <div class="app-topbar-actions">
+                <div th:replace="~{fragments/session-timer :: markup}"></div>
+            </div>
+        </header>
+
+        <main class="app-content">
+            <div class="toolbar-card">
+                <form method="get" th:action="@{/audit-logs}">
+                    <div class="input-group" style="max-width:28rem;">
+                        <input type="text" class="form-control" name="projectCode" th:value="${projectCode}" placeholder="프로젝트코드로 검색"/>
+                        <button type="submit" class="btn btn-info"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        <a th:if="${!projectCode.isBlank()}" th:href="@{/audit-logs}" class="btn btn-dark">초기화</a>
+                    </div>
+                </form>
+            </div>
+
+            <div class="table-card">
+                <div class="table-card-header">
+                    <span class="table-card-title">이력 목록</span>
+                    <span class="app-page-subtitle" th:text="'전체 ' + ${logs.totalElements} + '건'">0건</span>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <colgroup>
+                            <col width="14%"><col width="10%"><col width="10%"><col width="*"><col width="*"><col width="8%">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th class="v_mid">일시</th>
+                                <th class="v_mid">프로젝트코드</th>
+                                <th class="v_mid">구분</th>
+                                <th class="v_mid">변경 전</th>
+                                <th class="v_mid">변경 후</th>
+                                <th class="v_mid">작업자</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:if="${logs.totalElements == 0}">
+                                <td colspan="6">기록된 변경 이력이 없습니다.</td>
+                            </tr>
+                            <tr th:each="log : ${logs.content}">
+                                <td class="v_mid" th:text="${#temporals.format(log.changedAt, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                                <td class="v_mid" th:text="${log.projectCode}"></td>
+                                <td class="v_mid" th:text="${log.action.label}"></td>
+                                <td class="v_mid" style="word-break:break-word; white-space:normal;" th:text="${log.oldValue}"></td>
+                                <td class="v_mid" style="word-break:break-word; white-space:normal;" th:text="${log.newValue}"></td>
+                                <td class="v_mid" th:text="${log.changedBy}"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <nav th:if="${logs.totalPages > 1}" class="table-card-header">
+                    <a th:if="${logs.hasPrevious()}" class="btn btn-sm btn-outline-secondary"
+                       th:href="@{/audit-logs(page=${logs.number}, projectCode=${projectCode})}">이전</a>
+                    <span class="mx-2" th:text="${logs.number + 1} + ' / ' + ${logs.totalPages}"></span>
+                    <a th:if="${logs.hasNext()}" class="btn btn-sm btn-outline-secondary"
+                       th:href="@{/audit-logs(page=${logs.number + 2}, projectCode=${projectCode})}">다음</a>
+                </nav>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/session-timer :: script(${timeoutSeconds})}"></div>
+</body>
+</html>
