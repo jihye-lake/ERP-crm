@@ -1,5 +1,6 @@
 package com.nexora.erp.web;
 
+import com.nexora.erp.service.ExcelImportResult;
 import com.nexora.erp.service.ExcelProjectImportService;
 import com.nexora.erp.service.ProjectService;
 import org.springframework.http.MediaType;
@@ -7,6 +8,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.apache.poi.EmptyFileException;
+import org.apache.poi.UnsupportedFileFormatException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -23,6 +29,8 @@ import java.util.UUID;
 @Controller
 public class ProjectAdminController {
 
+    private static final Logger log = LoggerFactory.getLogger(ProjectAdminController.class);
+
     private final ProjectService projectService;
     private final ExcelProjectImportService excelProjectImportService;
 
@@ -34,9 +42,16 @@ public class ProjectAdminController {
     /** 원본 Project_Upload.asp */
     @PostMapping("/projects/upload")
     @PreAuthorize("hasRole('ADMIN')")
-    public String upload(@RequestParam("Project_Files") MultipartFile file) throws IOException {
-        int count = excelProjectImportService.importFrom(file);
-        return "redirect:/?uploaded=" + count;
+    public String upload(@RequestParam("Project_Files") MultipartFile file, RedirectAttributes redirect) {
+        try {
+            ExcelImportResult result = excelProjectImportService.importFrom(file);
+            redirect.addFlashAttribute("importResult", result);
+        } catch (IOException | UnsupportedFileFormatException | EmptyFileException e) {
+            // 엑셀이 아니거나 깨진 파일 (POI가 읽지 못함)
+            log.warn("엑셀 업로드 파일을 읽지 못함: {}", file.getOriginalFilename(), e);
+            redirect.addFlashAttribute("importFileError", "엑셀 파일을 읽을 수 없습니다. .xls / .xlsx 파일인지 확인해 주세요.");
+        }
+        return "redirect:/";
     }
 
     /** 원본 Project_Delete.asp */
@@ -45,9 +60,9 @@ public class ProjectAdminController {
     @ResponseBody
     public String delete(@PathVariable UUID id) {
         try {
-            projectService.deleteProject(id);
-            return "Y";
-        } catch (Exception e) {
+            return projectService.deleteProject(id) ? "Y" : "N";
+        } catch (RuntimeException e) {
+            log.error("프로젝트 삭제 실패: {}", id, e);
             return "N";
         }
     }

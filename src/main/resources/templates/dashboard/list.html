@@ -18,6 +18,30 @@
         </header>
 
         <main class="app-content">
+            <!-- 엑셀 업로드 결과 -->
+            <div th:if="${importFileError}" class="alert alert-danger" th:text="${importFileError}"></div>
+            <div th:if="${importResult != null and !importResult.hasErrors()}" class="alert alert-success">
+                <i class="fa-solid fa-circle-check"></i>
+                엑셀 업로드 완료 : <b th:text="${importResult.savedCount}">0</b>건 등록되었습니다.
+            </div>
+            <div th:if="${importResult != null and importResult.hasErrors()}" class="alert alert-danger">
+                <div class="mb-2">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    엑셀에 문제가 있는 행이 <b th:text="${importResult.errors.size()}">0</b>건 있어 <b>전체 업로드를 취소</b>했습니다.
+                    아래 행을 수정한 뒤 다시 올려주세요.
+                </div>
+                <table class="table table-sm mb-0" style="background:transparent;">
+                    <thead><tr><th style="width:5rem;">엑셀 행</th><th style="width:10rem;">프로젝트코드</th><th>사유</th></tr></thead>
+                    <tbody>
+                        <tr th:each="err : ${importResult.errors}">
+                            <td th:text="${err.rowNumber}"></td>
+                            <td th:text="${err.projectCode}"></td>
+                            <td th:text="${err.reason}"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
             <div class="kpi-grid">
                 <div class="kpi-card">
                     <div class="kpi-card-icon"><i class="fa-solid fa-sack-dollar"></i></div>
@@ -46,7 +70,7 @@
             <div class="toolbar-card">
                 <div class="row g-2 align-items-center">
                     <div class="col col-md-5" th:if="${isAdmin}">
-                        <form method="post" action="/projects/upload" enctype="multipart/form-data">
+                        <form method="post" th:action="@{/projects/upload}" enctype="multipart/form-data">
                             <div class="input-group">
                                 <input type="file" class="form-control" name="Project_Files" accept=".xls,.xlsx" required/>
                                 <button type="submit" class="btn btn-success"
