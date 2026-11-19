@@ -1,118 +1,188 @@
-# Nexora ERP — Java 재구현 (Spring Boot)
+# Nexora ERP — Classic ASP 레거시 ERP를 Spring Boot로 옮긴 기록
 
-기존 Classic ASP(VBScript) + MSSQL로 만들어진 사내 프로젝트 매출/직접비 관리 ERP를
-Spring Boot + PostgreSQL로 재구현한 프로젝트입니다. **핵심 기능 위주로 대표성 있게 재구현**한
-버전이며, 회사명·클라이언트명·계정 등은 전부 가상 데이터로 대체했습니다. 실제 데이터는
-포함되어 있지 않습니다.
+[![CI](https://github.com/jihye-lake/ERP-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/jihye-lake/ERP-crm/actions/workflows/ci.yml)
 
-> ⚠️ **중요**: 이 코드는 Maven Central 접근이 막힌 네트워크 환경에서 작성되어, **Spring
-> Boot 의존성을 받아 `mvn compile`로 끝까지 빌드해서 검증하지는 못했습니다.** 다만
-> `schema.sql`/`data.sql`(통계 화면용으로 확장된 36건의 프로젝트 + 88건의 직접비 포함)은
-> 실제 로컬 PostgreSQL 16에 직접 적용해 정상적으로 테이블 생성과 데모 데이터 입력이 되는
-> 것을 확인했고, 대시보드/검색/통계 화면에 쓰이는 모든 네이티브 쿼리(월별·연도별·클라이언트별·
-> 직접비 항목별 집계 포함)도 같은 DB에 대해 직접 실행해 계산 결과가 시드 데이터와 정확히
-> 일치하는 것까지 확인했습니다. 그 외 Java 코드는 여러 차례 꼼꼼히 검토했지만, IntelliJ에서
-> 처음 실행하면 오탈자나 의존성 관련 오류가 나올 수 있습니다. 에러 메시지를 그대로 알려주시면
-> 바로 고쳐드리겠습니다.
+사내에서 쓰던 **프로젝트 매출 / 직접비 관리 ERP**(Classic ASP + VBScript + MSSQL)를
+Spring Boot 3 + PostgreSQL로 다시 만든 프로젝트입니다.
 
-## 1. 무엇을 재구현했는가
+기능을 그대로 베끼기보다는, 원래 시스템을 쓰면서 불편했거나 위험했던 부분
+(문자열로 이어붙인 SQL, 소스에 박혀 있는 비밀번호, 135개짜리 반복 컬럼 등)을 정리하는 데 집중했습니다.
+회사명·클라이언트·담당자·계정은 전부 가상 데이터로 바꿨고 실제 데이터는 없습니다.
 
-| 원본 ASP 파일 | 재구현 위치 | 비고 |
-|---|---|---|
-| Login.asp, Login_process.asp | `SecurityConfig`, `AdminUserDetailsService`, `AuthController` | IP 화이트리스트 자동 로그인 + 소스코드 평문 비밀번호 하드코딩 → 계정 테이블 + BCrypt 해시 검증으로 완전 교체 |
-| index.asp (팀장/담당자 전용 대시보드) | `DashboardController#fullDashboard`, `dashboard/list.html` | 문자열을 이어붙여 조립하던 SQL(TOP/NOT IN 페이징) → 파라미터 바인딩 + Spring Data `Pageable`로 교체 |
-| monitor.asp (전체 로그인 사용자용 제한된 조회) | `DashboardController#monitorDashboard`, `dashboard/monitor.html` | 동일 도메인/서비스 재사용, 뷰만 분리 |
-| DirectCost/index.asp, Check.asp, DirectCost_Pro.asp | `DirectCostController`, `DirectCostService`, `direct-cost/*.html` | 27개 항목 × 5필드(135개 컬럼) 반복 컬럼 구조 → `direct_cost_item` 자식 테이블로 정규화 |
-| Project_Upload.asp (엑셀 일괄 업로드) | `ExcelProjectImportService` | IIS 전용 컴포넌트(DEXT.FileUpload) + ADO Jet OLEDB → Spring MultipartFile + Apache POI로 교체 |
-| Project_Delete.asp, Update_Cost.asp, Update_Kcode.asp | `ProjectAdminController` | 기존 프런트엔드 AJAX와의 호환을 위해 "Y"/"N" 텍스트 응답 계약은 그대로 유지 |
-| extend_session.asp | `SessionController` | 세션 연장 |
-| *(원본에 없던 신규 화면)* | `StatisticsController`, `StatisticsService`, `statistics/view.html` | 월별/연도별/클라이언트별/직접비 항목별 매출·비용을 Chart.js 그래프로 보여주는 통계 화면. 대시보드 상단 "통계 보기" 버튼으로 이동 (자세한 내용은 아래 "7. 통계 화면" 참고) |
+- 개발 과정 / 삽질 기록 : [docs/DEVLOG.md](docs/DEVLOG.md)
 
-재구현하지 않은 것: 없음에 가깝지만, 원본에 섞여 있던 이 ERP 기능과 무관한 별도 서브시스템(`LIB/` 하위의 부가 모듈 파일들)은 재구현 대상에서 제외했습니다.
+<br>
 
-### 보안 관련 주요 변경 사항 (원본 대비)
+## 실행 방법
 
-- 특정 IP 주소를 화이트리스트에 올려 자동 로그인시키던 로직을 **완전히 제거**했습니다.
-- 소스코드에 평문으로 하드코딩되어 있던 계정/비밀번호를 **제거**하고, DB 계정 + BCrypt 해시 기반 로그인으로 교체했습니다.
-- 실제 회사명, 클라이언트명, 담당자명, IP 등은 전부 **가상의 이름으로 대체**했습니다 (아래 "가상 데이터 안내" 참고).
+### 1) Docker (가장 간단)
 
-## 2. 로컬 실행에 필요한 프로그램
-
-- **JDK 17 이상**
-- **PostgreSQL 15+** (네이티브 설치, Docker 없이 진행하는 경우 기준)
-  1. [postgresql.org](https://www.postgresql.org/download/windows/) 에서 Windows용 설치파일 다운로드 후 설치
-     - 설치 중 `postgres` 슈퍼유저 비밀번호를 물어봅니다 → 기억해두기
-     - 포트는 기본값 5432 그대로 사용
-  2. pgAdmin 실행 → 서버 접속 → 상단 메뉴 **Tools > Query Tool**
-  3. 프로젝트에 포함된 `setup_db.sql` 파일을 열어서 안내된 순서(STEP 1 → DB 전환 → STEP 2)대로 실행
-     - 이 스크립트가 `erp_crm` DB와 `erp_user` 계정을 만들어 줍니다 (`application.yml`에 이미 이 값으로 설정되어 있어 별도 수정 불필요)
-  4. (참고) Docker를 쓸 수 있다면 이 과정 대신 프로젝트 루트에서 `docker compose up -d` 한 줄로 대체 가능합니다.
-- 기존 IIS/Tomcat은 필요 없습니다. Spring Boot는 내장 톰캣을 포함하고 있어서 IntelliJ 실행 버튼만으로 뜹니다.
-
-## 3. 실행 방법 (IntelliJ)
-
-1. `java-migration` 폴더를 IntelliJ에서 **Open** (Maven 프로젝트로 자동 인식, `pom.xml` 기준 의존성을 인터넷에서 자동 다운로드합니다)
-2. 위 2번 항목대로 PostgreSQL에 `erp_crm` DB와 `erp_user` 계정이 준비되어 있는지 확인
-3. `ErpCrmApplication`의 `main()` 옆 초록색 실행 버튼 클릭
-   - 최초 실행 시 `schema.sql` → `data.sql`이 자동 실행되어 테이블 생성 + 가상 데모 데이터가 들어갑니다.
-   - 콘솔에 빨간 에러 없이 `Started ErpCrmApplication` 로그가 뜨면 성공
-4. 브라우저에서 `http://localhost:8080` 접속 → 로그인 화면으로 자동 이동
-   - 데모 계정: `admin` / `admin1234` (관리자), `editor` / `editor1234` (운영 담당자), `partner` / `partner1234` (파트너사)
-5. DB 없이 그냥 눌러서 확인만 해보고 싶다면 실행 설정(Run Configuration)의 Program arguments에 아래를 추가:
-   ```
-   --spring.profiles.active=h2
-   ```
-   (H2 인메모리 DB로 뜨며, 앱을 끄면 데이터가 사라집니다. `schema.sql`이 PostgreSQL 문법 기준(UUID 기본값, generated column 등)이라 H2 호환 모드에서 100% 동작을 보장하지 못합니다 — 안 되면 postgres 프로필을 권장합니다.)
-
-## 4. 프로젝트 구조
-
-```
-src/main/java/com/nexora/erp/
-  domain/        JPA 엔티티 (Project, DirectCostItem, CostCategory, AdminAccount, AdminRole)
-  repository/    Spring Data JPA 리포지토리 (검색/합계 native query 포함)
-  service/       비즈니스 로직 (검색, 직접비 계산, 엑셀 업로드, 로그인 사용자 조회)
-  web/           컨트롤러 + 폼 DTO
-  config/        Spring Security 설정, 로그인 성공 후 역할별 리다이렉트
-src/main/resources/
-  schema.sql     정규화된 테이블 DDL (PostgreSQL)
-  data.sql       가상 데모 시드 데이터 (계정 3개 + 프로젝트 36건, 2025~2026년 전체 월에 분포)
-  templates/     Thymeleaf 화면 (로그인 / 대시보드 / 모니터 / 직접비 입력·조회 / 통계)
-  static/css/    사이드바 + 카드 기반의 모던 대시보드 UI로 재구성한 스타일시트 (원본 ASP 룩앤필은 유지하지 않음)
+```bash
+docker compose up -d --build
 ```
 
-## 5. 가상 데이터 안내
+http://localhost:8080 접속 → `admin` / `admin1234`
 
-이 저장소에는 실제 회사 정보가 전혀 포함되어 있지 않습니다.
+### 2) IntelliJ에서 DB 없이 바로 보기 (H2)
 
-- 시스템/기관명: "Nexora" (완전 가상, 디지털 프로덕트/데이터 컨설팅 에이전시 콘셉트)
-- 클라이언트명: 블루오션테크, 그린필드전자, 노스브릿지시스템즈 등 8곳 (전부 가상)
-- 프로젝트 유형: 플랫폼 구축, 데이터분석, 대시보드 구축, 컨설팅 등 (전부 가상 프로젝트)
-- 담당자명: 김도윤, 박서연, 이하늘, 최지안 등 (전부 가상)
-- 데모 계정 비밀번호는 `admin1234` 등 예시용이며, 실제 운영 환경에 배포할 경우 반드시 변경하세요.
-- 프로젝트 36건(2025년 12건 + 2026년 24건, 12개월 전체에 분포)과 직접비 항목 88건을 시드해,
-  대시보드에서 어떤 연/월을 검색해도(예: 2026년 08월) 실제 값이 나오고, 통계 화면의 모든 그래프에도
-  값이 채워지도록 했습니다.
+`ErpCrmApplication` 실행 설정 → Program arguments에 `--spring.profiles.active=h2`
 
-## 6. 통계 화면 (`/statistics`)
+메모리 DB라 앱을 끄면 데이터가 초기화됩니다.
 
-대시보드(관리자/담당자 전용) 상단의 **"통계 보기"** 버튼으로 이동할 수 있는 신규 화면입니다.
-원본 ASP 사이트에는 없던 화면이지만, 이미 쌓여 있는 매출/직접비 데이터를 여러 각도에서 한눈에
-볼 수 있도록 추가했습니다. 차트는 [Chart.js](https://www.chartjs.org/)를 CDN으로 불러와 그립니다.
+### 3) 로컬에 설치한 PostgreSQL 사용
 
-- 연간 목표 대비 누계 실적 게이지 (목표 금액은 `application.yml`의 `erp.annual-target-amount`에서 조정)
-- 클라이언트별 / 프로젝트 종류별 매출 비중 도넛 차트
-- 월별 매출·직접비 막대 그래프
-- 직접비 항목(카테고리)별 비중 가로 막대 그래프
-- 연도별 매출·직접비 추이 막대 그래프
-- 화면 우측 상단에서 연도를 바꿔가며 조회 가능
+`setup_db.sql`로 DB와 계정(`erp_crm` / `erp_user`)을 만든 다음 그냥 실행하면 됩니다.
+테이블 생성과 데모 데이터는 Flyway가 넣어줍니다. 접속 정보는 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` 환경변수로 바꿀 수 있습니다.
 
-매출·클라이언트 상세 정보가 노출되므로 대시보드 전체 화면과 동일하게 팀장(ADMIN)/담당자(EDITOR)만
-접근할 수 있고, 파트너사(VIEWER) 계정에는 버튼 자체가 보이지 않습니다.
+| 계정 | 비밀번호 | 역할 | 할 수 있는 것 |
+|---|---|---|---|
+| admin | admin1234 | 관리자(팀장) | 전체 + 매출/Kcode 수정, 삭제, 엑셀 업로드, 변경 이력 |
+| editor | editor1234 | 운영 담당자 | 조회 + 직접비 입력, 통계 |
+| partner | partner1234 | 파트너사 | 제한된 목록 조회만 |
 
-## 7. 다음에 이어서 할 만한 작업
+<br>
 
-- [ ] CSRF 보호 활성화 (현재는 원본과의 AJAX 호환을 위해 비활성화)
-- [ ] 프로젝트/직접비 변경 이력(감사 로그) 테이블 추가
-- [ ] 역할별 메뉴 접근을 `@PreAuthorize` 기반 테스트 코드로 검증
-- [ ] Flyway 등 스키마 마이그레이션 도구 도입 (현재는 `schema.sql` 재실행 방식)
-- [ ] 엑셀 업로드 실패 행에 대한 상세 오류 리포트 (현재는 프로젝트코드 없는 행만 조용히 skip)
+## 기술 스택
+
+Java 17, Spring Boot 3.2, Spring Security 6, Spring Data JPA, Thymeleaf, PostgreSQL 16, Flyway, Apache POI,
+JUnit 5 / Mockito / Testcontainers, Docker Compose, GitHub Actions
+
+<br>
+
+## 원래 시스템에서 문제였던 것들
+
+1. **SQL을 문자열로 이어붙여서 만듦** — 검색어가 그대로 쿼리에 들어가서 SQL Injection에 노출. 페이징도 `TOP n ... NOT IN (TOP m ...)` 방식이라 뒤 페이지일수록 비효율적
+2. **로그인** — 특정 IP는 비밀번호 없이 자동 로그인, 나머지는 소스코드에 평문으로 적힌 비밀번호와 비교
+3. **직접비 테이블이 컬럼 135개** — 비용 항목 27개 × (단가, 투여량, 일자, 금액, 비고) 5개를 전부 컬럼으로 펼쳐둔 구조. 항목 하나 추가하려면 테이블 변경 + ASP 파일 여러 개 수정
+4. **권한 체크가 페이지마다 if문** — 빠진 페이지가 있어도 알 방법이 없음
+5. **엑셀 업로드에서 문제 있는 행을 그냥 버림** — 일부 행이 빠져도 아무 메시지가 없어서, 몇 건이 누락됐는지 알 수 없음
+6. **누가 매출을 바꿨는지 기록이 없음**
+7. IIS 전용 컴포넌트(DEXT.FileUpload), Jet OLEDB에 묶여 있어서 서버 이전이 어려움
+
+<br>
+
+## 어떻게 바꿨는지
+
+| 원래 | 변경 후 |
+|---|---|
+| 문자열 SQL + `TOP/NOT IN` 페이징 | 파라미터 바인딩 + Spring Data `Pageable` |
+| IP 자동 로그인 / 평문 비밀번호 | Spring Security 폼 로그인 + BCrypt, 역할(ADMIN/EDITOR/VIEWER) 기반 권한 |
+| 페이지별 if문 권한 체크 | `@PreAuthorize`로 메서드 단위 선언 + 역할별 접근 테스트로 검증 |
+| 직접비 135개 컬럼 | `direct_cost_item` 자식 테이블 (프로젝트당 최대 27행), 항목은 enum으로 관리 |
+| 프로젝트코드에서 매번 `substring`으로 연/월 추출 | `year_code`, `month_code` generated column + 인덱스 |
+| 엑셀 업로드 시 문제 행 무시 | 행별 검증 → 하나라도 문제 있으면 전체 취소하고 행 번호/사유 표시 |
+| 변경 이력 없음 | `project_audit_log` 테이블 + 관리자용 변경 이력 화면 |
+| DEXT.FileUpload + Jet OLEDB | MultipartFile + Apache POI (.xls / .xlsx) |
+| CSRF 보호 없음 | 폼은 Thymeleaf 자동 토큰, AJAX는 공통 헤더로 전송 |
+
+### 직접비 테이블
+
+```
+[원래] ERP_direct_cost
+  IDX, 항목1_단가, 항목1_투여량, 항목1_일자, 항목1_금액, 항목1_비고,
+       항목2_단가, ... (27개 항목 × 5 = 135개 컬럼)
+
+[변경] project 1 ── N direct_cost_item
+  direct_cost_item(id, project_id, category_code, unit_price, quantity, days, amount, note)
+  UNIQUE(project_id, category_code)
+```
+
+<br>
+
+## 설계하면서 고민했던 부분
+
+**직접비를 정규화하면 집계 쿼리가 복잡해지는 문제**
+원래 구조는 한 행에 다 있어서 합계가 `항목1_금액 + 항목2_금액 + ...` 한 줄이었는데, 정규화하면
+목록 화면에서 프로젝트마다 직접비 합계를 따로 구해야 합니다. 엔티티로 가져와서 자바에서 더하면 프로젝트 수만큼
+쿼리가 나가기 때문에(N+1), 목록 조회는 네이티브 쿼리 + 서브쿼리로 한 번에 가져오고 결과는
+인터페이스 프로젝션(`ProjectListRow`)으로 받도록 했습니다.
+
+**연/월을 generated column으로 만든 이유**
+검색이 거의 항상 "몇 년 몇 월 프로젝트"인데, 원래는 `SUBSTRING(프로젝트코드, 2, 2)` 같은 조건이라 인덱스를 못 탔습니다.
+코드 규칙(P + 연도2 + 월2 + 순번)이 바뀔 일이 없어서 DB에서 파생 컬럼으로 만들고 인덱스를 걸었습니다.
+대신 이 형식이 깨지면 검색에 안 잡히기 때문에 엑셀 업로드에서 코드 형식을 꼭 검증하도록 했습니다.
+
+**AJAX 응답을 "Y"/"N" 텍스트로 그대로 둔 것**
+REST 스타일 JSON으로 바꾸는 게 더 깔끔하긴 한데, 이번 범위는 서버 이전이라 화면 JS는 최소한으로만 고치고 싶었습니다.
+기존 응답 형식을 그대로 맞추고, 대신 실패 시 서버 로그는 남기도록 했습니다.
+
+**엑셀 업로드: 부분 반영 vs 전체 취소**
+문제 있는 행만 빼고 넣는 방식도 생각했는데, 그러면 엑셀을 고쳐서 다시 올렸을 때 앞에서 들어간 행이 중복이 됩니다.
+정산 데이터라 "애매하게 반쯤 들어간 상태"가 더 위험하다고 봐서 전체 취소 + 오류 목록을 보여주는 쪽을 택했습니다.
+
+**감사 로그를 같은 트랜잭션에 묶은 것**
+로그 저장은 `Propagation.MANDATORY`로 해서 반드시 본 작업 트랜잭션 안에서만 저장되게 했습니다.
+매출 수정이 롤백됐는데 로그만 남거나, 반대로 수정은 됐는데 로그가 빠지는 경우를 없애려고요.
+그리고 `project_id`에 FK를 안 걸었는데, 프로젝트를 삭제해도 "누가 지웠는지"는 남아야 해서입니다.
+
+**H2와 PostgreSQL**
+로컬에서 DB 없이 띄워볼 수 있게 H2 프로필을 남겨뒀는데, 실제로 H2에서는 되는데 PostgreSQL에서 안 되는 경우
+(또는 그 반대)를 몇 번 겪었습니다 ([DEVLOG](docs/DEVLOG.md) 참고). 그래서 쿼리 검증 테스트는 H2가 아니라
+Testcontainers로 실제 PostgreSQL을 띄워서 돌립니다.
+
+<br>
+
+## 테스트
+
+```bash
+./mvnw test
+```
+
+| 테스트 | 내용 |
+|---|---|
+| `DirectCostServiceTest` | 직접비 금액 계산 규칙 (원래 화면 JS의 계산 방식과 동일한지) |
+| `ExcelProjectImportServiceTest` | 엑셀 정상 업로드 / 빈 행 / 코드 형식·중복·금액 오류 시 전체 취소 |
+| `SecurityAccessTest` | 역할별 화면·기능 접근 권한, CSRF 토큰 없을 때 거부 |
+| `AuditLogIntegrationTest` | 변경 이력 저장, 값 변화 없으면 미기록, 삭제 후에도 이력 유지, 트랜잭션 밖 호출 차단 |
+| `PostgresIntegrationTest` | Flyway 마이그레이션, generated column, 검색/통계 네이티브 쿼리 (Testcontainers) |
+
+`PostgresIntegrationTest`는 Docker가 필요해서 Docker가 없는 PC에서는 자동으로 skip 되고, GitHub Actions에서는 항상 실행됩니다.
+
+<br>
+
+## 프로젝트 구조
+
+```
+src/main/java/com/nexora/erp
+  config/       Spring Security 설정, 로그인 후 역할별 이동
+  domain/       엔티티 (Project, DirectCostItem, ProjectAuditLog, ...)
+  repository/   JPA 리포지토리, 목록/통계용 네이티브 쿼리 + 프로젝션
+  service/      검색·합계, 직접비 계산, 엑셀 업로드, 변경 이력
+  web/          컨트롤러, 폼 DTO
+src/main/resources
+  db/migration/ Flyway 스크립트 (V1 스키마, V2 데모 데이터, V3 변경 이력)
+  schema-h2.sql H2 프로필 전용 스키마
+  templates/    Thymeleaf 화면
+```
+
+### 원래 파일 ↔ 이번 코드
+
+| 원래 ASP | 이번 코드 |
+|---|---|
+| Login.asp, Login_process.asp | `SecurityConfig`, `AdminUserDetailsService`, `LoginSuccessHandler` |
+| index.asp (관리자/담당자 대시보드) | `DashboardController#fullDashboard` |
+| monitor.asp (파트너사용 조회) | `DashboardController#monitorDashboard` |
+| DirectCost/index.asp, Check.asp, DirectCost_Pro.asp | `DirectCostController`, `DirectCostService` |
+| Project_Upload.asp | `ExcelProjectImportService` |
+| Project_Delete.asp, Update_Cost.asp, Update_Kcode.asp | `ProjectAdminController` |
+| extend_session.asp | `SessionController` |
+| (새로 추가) 통계 화면 | `StatisticsController` — 월별/연도별/클라이언트별/항목별 차트 (Chart.js) |
+| (새로 추가) 변경 이력 | `AuditLogController` |
+
+<br>
+
+## 아직 남은 것
+
+- [ ] AJAX 응답을 Y/N 텍스트에서 JSON + HTTP 상태코드로 정리 (화면 JS 같이 수정 필요)
+- [ ] 직접비 항목(27개)을 enum이 아니라 테이블로 빼서 관리자 화면에서 추가/수정
+- [ ] 비밀번호 변경, 로그인 실패 횟수 제한
+- [ ] 변경 이력 엑셀 다운로드
+
+<br>
+
+## 참고
+
+- 데이터: 회사(Nexora), 클라이언트 8곳, 담당자, 프로젝트 36건 / 직접비 88건 모두 가상입니다. 데모 계정 비밀번호는 예시용입니다.
+- 원래 시스템에 같이 있던, 이 ERP와 관계없는 부가 모듈(`LIB/` 하위)은 옮기지 않았습니다.
+- 개발하면서 AI 코딩 도구(Claude Code)를 함께 사용했습니다. 주로 실행 오류 원인 추적, 테스트 코드 초안, Docker/CI 설정, 문서 정리에 활용했고,
+  나온 결과는 직접 실행하고 테스트를 돌려보면서 확인한 뒤 반영했습니다.
