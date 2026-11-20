@@ -1,0 +1,7 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/* 금액 표시: "￦ 1,234,000" + 아래 작은 한글 금액. 사용: th:replace="~{fragments/money :: amount(${값})}" */-->
+<th:block th:fragment="amount(value)"><span class="amount-value">￦ <span th:text="${@money.comma(value)}">0</span></span><small class="amount-ko" th:text="${@money.korean(value)}"></small></th:block>
+</body>
+</html>
