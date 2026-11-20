@@ -46,23 +46,27 @@
                 <div class="kpi-card">
                     <div class="kpi-card-icon"><i class="fa-solid fa-sack-dollar"></i></div>
                     <div class="kpi-card-label" th:text="${form.searchType1} + '년 매출'">연 매출</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.yearRevenue, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(summary.yearRevenue)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(summary.yearRevenue)}"></div>
                 </div>
                 <div class="kpi-card accent-warning">
                     <div class="kpi-card-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
                     <div class="kpi-card-label" th:text="${form.searchType1} + '년 직접비'">연 직접비</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.yearDirectCost, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(summary.yearDirectCost)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(summary.yearDirectCost)}"></div>
                     <div class="kpi-card-sub" th:text="'직접비 비율 ' + ${yearCostPercent}">직접비 비율 0.0%</div>
                 </div>
                 <div class="kpi-card accent-info">
                     <div class="kpi-card-icon"><i class="fa-solid fa-coins"></i></div>
                     <div class="kpi-card-label" th:text="${form.searchType1} + '년 ' + ${form.searchType2} + '월 매출'">월 매출</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.monthRevenue, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(summary.monthRevenue)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(summary.monthRevenue)}"></div>
                 </div>
                 <div class="kpi-card accent-warning">
                     <div class="kpi-card-icon"><i class="fa-solid fa-receipt"></i></div>
                     <div class="kpi-card-label" th:text="${form.searchType1} + '년 ' + ${form.searchType2} + '월 직접비'">월 직접비</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.monthDirectCost, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(summary.monthDirectCost)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(summary.monthDirectCost)}"></div>
                     <div class="kpi-card-sub" th:text="'직접비 비율 ' + ${monthCostPercent}">직접비 비율 0.0%</div>
                 </div>
             </div>
@@ -71,10 +75,16 @@
                 <div class="row g-2 align-items-center">
                     <div class="col col-md-5" th:if="${isAdmin}">
                         <form method="post" th:action="@{/projects/upload}" enctype="multipart/form-data">
+                            <input type="hidden" name="month" th:value="${form.searchType2}"/>
                             <div class="input-group">
                                 <input type="file" class="form-control" name="Project_Files" accept=".xls,.xlsx" required/>
+                                <a class="btn btn-outline-secondary" th:href="@{/projects/upload-template}" title="업로드용 엑셀 양식 다운로드">
+                                    <i class="fa-solid fa-file-arrow-down"></i>&nbsp;양식 다운로드
+                                </a>
                                 <button type="submit" class="btn btn-success"
-                                        onclick="return confirm('프로젝트를 일괄 업로드 하시겠습니까?');">
+                                        th:data-month="${form.searchType2}"
+                                        onclick="return confirm('프로젝트를 일괄 업로드 하시겠습니까?
+(' + Number(this.dataset.month) + '월 프로젝트로 등록됩니다)');">
                                     <i class="fa-solid fa-upload"></i>&nbsp;업로드
                                 </button>
                             </div>
@@ -87,7 +97,7 @@
                             <input type="hidden" name="pageSize" th:value="${form.pageSize}"/>
                             <div class="input-group">
                                 <input type="text" class="form-control" name="searchProject" th:value="${form.searchProject}"
-                                       placeholder="프로젝트코드 / Kcode 검색"/>
+                                       placeholder="프로젝트코드 / No 검색"/>
                                 <button type="submit" name="surType" value="2" class="btn btn-info">
                                     <i class="fa-solid fa-magnifying-glass"></i>
                                 </button>
@@ -111,7 +121,11 @@
             <div class="table-card">
                 <div class="table-card-header">
                     <span class="table-card-title">프로젝트 목록</span>
-                    <span class="app-page-subtitle" th:text="'전체 ' + ${page.totalElements} + '건'">0건</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="app-page-subtitle" th:text="'전체 ' + ${page.totalElements} + '건'">0건</span>
+                        <button type="button" id="addProjectBtn" class="btn btn-sm btn-primary" th:if="${canCreateProject}"
+                                title="프로젝트 추가"><i class="fa-solid fa-plus"></i></button>
+                    </div>
                 </div>
                 <div class="table-container">
                     <table class="table">
@@ -123,7 +137,7 @@
                         </colgroup>
                         <thead>
                             <tr>
-                                <th class="v_mid">Kcode</th>
+                                <th class="v_mid">No</th>
                                 <th class="v_mid">프로젝트코드</th>
                                 <th class="v_mid">제목</th>
                                 <th class="v_mid">종류</th>
@@ -135,21 +149,12 @@
                                 <th class="v_mid" th:if="${isAdmin}">삭제</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr th:if="${page.totalElements == 0}">
+                        <tbody id="projectTableBody">
+                            <tr th:if="${page.totalElements == 0}" id="emptyRow">
                                 <td colspan="10">프로젝트 현황이 존재하지 않습니다.</td>
                             </tr>
                             <tr th:each="row : ${page.content}">
-                                <td class="v_mid text-center">
-                                    <span th:if="${!isAdmin or !row.requiresPartnerCode}" th:text="${row.kcode}"></span>
-                                    <a th:if="${isAdmin and row.requiresPartnerCode and row.kcode != null and !row.kcode.isBlank()}"
-                                       class="kcode-link open-kcode-modal" th:text="${row.kcode}"
-                                       th:attr="data-id=${row.id},data-kcode=${row.kcode}" href="javascript:void(0);"></a>
-                                    <a th:if="${isAdmin and row.requiresPartnerCode and (row.kcode == null or row.kcode.isBlank())}"
-                                       class="kcode-empty open-kcode-modal"
-                                       th:attr="data-id=${row.id},data-kcode=''" href="javascript:void(0);">
-                                        <i class="fa-solid fa-circle-plus"></i>입력</a>
-                                </td>
+                                <td class="v_mid text-center" th:text="${row.no}"></td>
                                 <td class="v_mid" th:text="${row.projectCode}"></td>
                                 <td class="v_mid" style="word-break:break-word; white-space:normal;" th:text="${row.title}"></td>
                                 <td class="v_mid" th:text="${row.projectType}"></td>
@@ -158,16 +163,18 @@
                                 <td class="v_mid text-end">
                                     <div class="input-group" th:if="${isAdmin}">
                                         <input type="text" class="form-control text-end" th:id="'Rcost_' + ${row.id}" maxlength="20"
-                                               th:value="'￦ ' + ${#numbers.formatInteger(row.revenueAmount, 0)}" style="margin:0rem;width:4rem;" disabled/>
+                                               th:value="'￦ ' + ${@money.comma(row.revenueAmount)}" style="margin:0rem;width:4rem;" disabled/>
                                         <input type="hidden" th:id="'cost_' + ${row.id}" th:value="${row.revenueAmount}"/>
                                         <button type="button" class="btn btn-default edit-revenue-btn" th:id="'btn_CEdit_' + ${row.id}"
                                                 th:attr="data-id=${row.id}">수정</button>
                                     </div>
-                                    <span th:unless="${isAdmin}" th:text="'￦ ' + ${#numbers.formatInteger(row.revenueAmount, 0)}"></span>
+                                    <small class="amount-ko" th:if="${isAdmin}" th:id="'RcostKo_' + ${row.id}" th:text="${@money.korean(row.revenueAmount)}"></small>
+                                    <th:block th:unless="${isAdmin}"><th:block th:replace="~{fragments/money :: amount(${row.revenueAmount})}"></th:block></th:block>
                                 </td>
                                 <td class="v_mid text-end">
-                                    ￦ <span th:text="${#numbers.formatInteger(row.directCostTotal, 0)}"></span>
+                                    ￦ <span th:text="${@money.comma(row.directCostTotal)}"></span>
                                     <a class="btn btn-default btn-sm" th:href="@{/direct-cost/{id}(id=${row.id})}" target="_blank">입력</a>
+                                    <small class="amount-ko" th:text="${@money.korean(row.directCostTotal)}"></small>
                                 </td>
                                 <td class="v_mid" th:text="${T(com.nexora.erp.web.PercentUtil).format(row.directCostTotal, row.revenueAmount)}"></td>
                                 <td class="v_mid" th:if="${isAdmin}">
@@ -179,8 +186,8 @@
                         <tfoot>
                             <tr>
                                 <td colspan="6" class="v_mid Bd">합계 (검색 결과 전체)</td>
-                                <td class="v_mid text-end">￦ <span th:text="${#numbers.formatInteger(summary.filteredRevenueTotal, 0)}"></span></td>
-                                <td class="v_mid text-end">￦ <span th:text="${#numbers.formatInteger(summary.filteredDirectCostTotal, 0)}"></span></td>
+                                <td class="v_mid text-end" th:insert="~{fragments/money :: amount(${summary.filteredRevenueTotal})}"></td>
+                                <td class="v_mid text-end" th:insert="~{fragments/money :: amount(${summary.filteredDirectCostTotal})}"></td>
                                 <td colspan="2"></td>
                             </tr>
                         </tfoot>
@@ -199,21 +206,62 @@
     </div>
 </div>
 
-<!-- Kcode 변경 모달 -->
-<div class="modal fade" id="kcodeModal" tabindex="-1" aria-hidden="true">
+<!-- 프로젝트 추가 행 (+ 버튼을 누르면 목록 맨 위에 복사해서 넣음) -->
+<template id="newProjectRowTemplate" th:if="${canCreateProject}">
+    <tr class="new-project-row">
+        <td class="v_mid text-center" colspan="2">
+            <div class="text-muted small">코드 자동생성</div>
+            <div class="small fw-bold" th:text="${form.searchType1} + '년 ' + ${form.searchType2} + '월'"></div>
+            <div class="mt-1 d-flex justify-content-center gap-1">
+                <button type="button" class="btn btn-sm btn-primary new-project-save">저장</button>
+                <button type="button" class="btn btn-sm btn-secondary new-project-cancel">취소</button>
+            </div>
+        </td>
+        <td class="v_mid"><input type="text" class="form-control form-control-sm np-title" maxlength="500" placeholder="제목"/></td>
+        <td class="v_mid">
+            <select class="form-select form-select-sm np-type">
+                <option value="">선택</option>
+                <option th:each="t : ${projectTypes}" th:value="${t.label}" th:text="${t.label}"></option>
+            </select>
+        </td>
+        <td class="v_mid">
+            <div class="input-group input-group-sm">
+                <input type="text" class="form-control np-manager" placeholder="검색" readonly/>
+                <button type="button" class="btn btn-outline-secondary np-lookup" data-kind="manager" title="담당자 검색">
+                    <i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+        </td>
+        <td class="v_mid">
+            <div class="input-group input-group-sm">
+                <input type="text" class="form-control np-client" placeholder="검색" readonly/>
+                <button type="button" class="btn btn-outline-secondary np-lookup" data-kind="client" title="클라이언트 검색">
+                    <i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+        </td>
+        <td class="v_mid"><input type="text" class="form-control form-control-sm text-end np-amount np-revenue" inputmode="numeric" placeholder="매출 금액"/>
+            <small class="amount-ko text-end np-ko"></small></td>
+        <td class="v_mid"><input type="text" class="form-control form-control-sm text-end np-amount np-cost" inputmode="numeric" placeholder="직접비" value="0"/>
+            <small class="amount-ko text-end np-ko">영원</small></td>
+        <td class="v_mid np-ratio">0.0%</td>
+        <td class="v_mid" th:if="${isAdmin}"></td>
+    </tr>
+</template>
+
+<!-- 담당자 / 클라이언트 검색 모달 -->
+<div class="modal fade" id="lookupModal" tabindex="-1" aria-hidden="true" th:if="${canCreateProject}">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" style="font-weight:bold;">Kcode 변경</h5>
+                <h5 class="modal-title" id="lookupModalTitle" style="font-weight:bold;">검색</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <input type="hidden" id="modalTargetIdx" value=""/>
-                <input type="text" class="form-control" id="modalKcodeValue" placeholder="K26-000" maxlength="20" autocomplete="off"/>
-            </div>
-            <div class="modal-footer" style="padding:0.5rem 0.75rem;">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
-                <button type="button" class="btn btn-sm btn-primary" onclick="javascript:updateKcode();">저장</button>
+                <div class="input-group input-group-sm mb-2">
+                    <input type="text" class="form-control" id="lookupKeyword" placeholder="이름 일부 입력" autocomplete="off"/>
+                    <button type="button" class="btn btn-info" id="lookupSearchBtn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                </div>
+                <div class="list-group" id="lookupResults" style="max-height:16rem; overflow-y:auto;"></div>
+                <button type="button" class="btn btn-sm btn-outline-primary w-100 mt-2 d-none" id="lookupUseTyped"></button>
             </div>
         </div>
     </div>
@@ -243,56 +291,201 @@
             });
     });
 
-    let editCounter = 0;
+    // 매출 인라인 수정: [수정] → 입력 가능 + [확인] → 저장
+    // (예전엔 버튼 클래스를 전부 지워서(removeClass()) 이 핸들러가 [확인] 클릭을 못 받았고,
+    //  수정 상태를 화면 전체 카운터 하나로 관리해서 여러 행을 오가면 꼬였음 → 행(버튼)마다 상태를 둠)
+    function parseRevenue(v) {
+        const s = String(v || "").replace(/[^0-9.]/g, "");
+        return /^\d+(\.\d+)?$/.test(s) ? s : null;
+    }
+
     $(document).on('click', '.edit-revenue-btn', function () {
-        const id = $(this).data('id');
-        editCounter++;
+        const btn = $(this);
+        const id = btn.data('id');
         const input = $("#Rcost_" + id);
-        if (editCounter % 2 === 1) {
-            input.prop("disabled", false);
-            input.val($("#cost_" + id).val());
-            $("#btn_CEdit_" + id).text("확인").removeClass().addClass("btn btn-danger btn-sm");
-        } else {
-            $("#cost_" + id).val(input.val());
-            if (!confirm("매출금액을 수정하시겠습니까?")) {
-                return;
-            }
-            $.ajax({url: "/projects/" + id + "/revenue", type: "POST", dataType: "html", data: {Cost: input.val()}})
-                .done(function (data) {
-                    alert(data === "Y" ? "매출 금액이 업데이트 되었습니다." : "매출 금액 업데이트에 실패하였습니다.");
-                    location.reload();
-                })
-                .fail(function () {
-                    alert("확인중에 문제가 발생했습니다.\n담당자 분께 문의해 주세요.");
-                });
-        }
-    });
 
-    $(document).on('click', '.open-kcode-modal', function () {
-        $("#modalTargetIdx").val($(this).data('id'));
-        $("#modalKcodeValue").val($(this).data('kcode'));
-        new bootstrap.Modal(document.getElementById('kcodeModal')).show();
-    });
-
-    function updateKcode() {
-        const id = $("#modalTargetIdx").val();
-        const kcode = $("#modalKcodeValue").val().trim().toUpperCase();
-        if (!confirm("Kcode 정보를 수정하시겠습니까?")) {
+        if (!btn.hasClass("editing")) {
+            input.prop("disabled", false)
+                .val(Money.comma($("#cost_" + id).val()))
+                .focus().select();
+            btn.addClass("editing btn-danger btn-sm").removeClass("btn-default").text("확인");
             return;
         }
-        $.ajax({url: "/projects/" + id + "/kcode", type: "POST", dataType: "html", data: {Kcode: kcode}})
+
+        const amount = parseRevenue(input.val());
+        if (amount === null) {
+            alert("매출 금액을 숫자로 입력해 주세요.");
+            input.focus();
+            return;
+        }
+        if (!confirm("매출금액을 수정하시겠습니까?")) {
+            return; // 취소하면 수정 상태 유지 → 다시 [확인] 누르면 저장
+        }
+        btn.prop("disabled", true);
+        $.ajax({url: "/projects/" + id + "/revenue", type: "POST", dataType: "html", data: {Cost: amount}})
             .done(function (data) {
-                if (data === "Y") {
-                    alert("Kcode가 정상적으로 업데이트 되었습니다.");
-                    location.reload();
-                } else {
-                    alert("Kcode 업데이트에 실패하였습니다.");
-                }
+                alert(data === "Y" ? "매출 금액이 업데이트 되었습니다." : "매출 금액 업데이트에 실패하였습니다.");
+                location.reload();
             })
             .fail(function () {
-                alert("통신 중 에러가 발생했습니다.\n담당자에게 문의해 주세요.");
+                alert("확인중에 문제가 발생했습니다.\n담당자 분께 문의해 주세요.");
+                btn.prop("disabled", false);
             });
+    });
+
+    // 매출 수정 중: 콤마 자동 + 아래 한글 금액 갱신
+    $(document).on('input', '[id^="Rcost_"]', function () {
+        const id = this.id.substring("Rcost_".length);
+        const raw = $(this).val().replace(/[^0-9.]/g, "");
+        if (raw === "") {
+            $("#RcostKo_" + id).text("");
+            return;
+        }
+        // 소수점 입력 중("123.")에는 점을 지우지 않도록 정수부만 콤마 처리
+        const dot = raw.indexOf(".");
+        const intPart = dot < 0 ? raw : raw.substring(0, dot);
+        const frac = dot < 0 ? "" : "." + raw.substring(dot + 1).replace(/\./g, "");
+        $(this).val(Money.comma(intPart || "0") + frac);
+        $("#RcostKo_" + id).text(Money.korean(intPart || "0"));
+    });
+
+    // 매출 입력칸에서 Enter = [확인]
+    $(document).on('keydown', '[id^="Rcost_"]', function (e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            $("#btn_CEdit_" + this.id.substring("Rcost_".length)).trigger("click");
+        }
+    });
+
+    // ---------------- 프로젝트 추가 (+ 버튼) ----------------
+    const newProjectYear = /*[[${form.searchType1}]]*/ '';
+    const newProjectMonth = /*[[${form.searchType2}]]*/ '';
+
+    function parseAmount(v) {
+        const digits = String(v || "").replace(/[^0-9]/g, "");
+        return digits === "" ? null : Number(digits);
     }
+
+    function updateNewRowRatio(row) {
+        const revenue = parseAmount(row.find(".np-revenue").val()) || 0;
+        const cost = parseAmount(row.find(".np-cost").val()) || 0;
+        // 서버 PercentUtil 과 같은 규칙: 매출 0이면 0.0%, 소수 첫째 자리 반올림
+        row.find(".np-ratio").text(revenue === 0 ? "0.0%" : (Math.round(cost * 1000 / revenue) / 10).toFixed(1) + "%");
+    }
+
+    $("#addProjectBtn").on("click", function () {
+        if ($(".new-project-row").length) {
+            $(".new-project-row .np-title").focus();
+            return;
+        }
+        const row = $($("#newProjectRowTemplate").html());
+        $("#emptyRow").hide();
+        $("#projectTableBody").prepend(row);
+        row.find(".np-title").focus();
+    });
+
+    $(document).on("click", ".new-project-cancel", function () {
+        $(this).closest("tr").remove();
+        $("#emptyRow").show();
+    });
+
+    // 금액 입력: 숫자만 남기고 천 단위 콤마, 비율 즉시 계산
+    $(document).on("input", ".np-amount", function () {
+        const n = parseAmount($(this).val());
+        $(this).val(n === null ? "" : Money.comma(n));
+        $(this).siblings(".np-ko").text(n === null ? "" : Money.korean(n));
+        updateNewRowRatio($(this).closest("tr"));
+    });
+
+    $(document).on("click", ".new-project-save", function () {
+        const row = $(this).closest("tr");
+        const btn = $(this);
+        const payload = {
+            title: row.find(".np-title").val().trim(),
+            projectType: row.find(".np-type").val(),
+            manager: row.find(".np-manager").val().trim(),
+            clientName: row.find(".np-client").val().trim(),
+            revenueAmount: parseAmount(row.find(".np-revenue").val()),
+            directCost: parseAmount(row.find(".np-cost").val()) || 0,
+            year: newProjectYear,
+            month: newProjectMonth
+        };
+        if (!payload.title) { alert("제목을 입력해 주세요."); return; }
+        if (!payload.projectType) { alert("종류를 선택해 주세요."); return; }
+        if (!payload.clientName) { alert("클라이언트를 검색해서 선택해 주세요."); return; }
+        if (payload.revenueAmount === null) { alert("매출 금액을 입력해 주세요."); return; }
+        if (!confirm("프로젝트를 추가하시겠습니까?")) { return; }
+
+        btn.prop("disabled", true);
+        $.ajax({url: "/projects", type: "POST", contentType: "application/json", dataType: "json", data: JSON.stringify(payload)})
+            .done(function (res) {
+                alert("프로젝트가 추가되었습니다.\nNo " + res.no + " / 프로젝트코드 " + res.projectCode);
+                location.reload();
+            })
+            .fail(function (xhr) {
+                const msg = xhr.responseJSON && xhr.responseJSON.message;
+                alert(msg || "프로젝트 추가 중 문제가 발생했습니다.");
+                btn.prop("disabled", false);
+            });
+    });
+
+    // ---------------- 담당자 / 클라이언트 검색 모달 ----------------
+    let lookupKind = null;
+    let lookupTargetRow = null;
+    let lookupTimer = null;
+
+    $(document).on("click", ".np-lookup", function () {
+        lookupKind = $(this).data("kind");
+        lookupTargetRow = $(this).closest("tr");
+        $("#lookupModalTitle").text(lookupKind === "manager" ? "담당자 검색" : "클라이언트 검색");
+        $("#lookupKeyword").val("");
+        $("#lookupResults").empty();
+        $("#lookupUseTyped").addClass("d-none");
+        const modalEl = document.getElementById("lookupModal");
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        runLookup();
+    });
+
+    $("#lookupModal").on("shown.bs.modal", function () { $("#lookupKeyword").focus(); });
+    $("#lookupSearchBtn").on("click", runLookup);
+    $("#lookupKeyword").on("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); runLookup(); }
+    }).on("input", function () {
+        clearTimeout(lookupTimer);
+        lookupTimer = setTimeout(runLookup, 250);
+    });
+
+    function runLookup() {
+        const keyword = $("#lookupKeyword").val().trim();
+        const url = lookupKind === "manager" ? "/projects/managers" : "/projects/clients";
+        $.getJSON(url, {q: keyword}).done(function (items) {
+            const list = $("#lookupResults").empty();
+            items.forEach(function (item) {
+                const name = lookupKind === "manager" ? item : item.name;
+                const el = $('<button type="button" class="list-group-item list-group-item-action py-1"></button>')
+                    .attr("data-value", name).text(name);
+                if (lookupKind === "client") {
+                    el.append($('<span class="badge bg-secondary float-end"></span>').text(item.abbr));
+                }
+                list.append(el);
+            });
+            if (!items.length) {
+                list.append($('<div class="text-muted small px-1"></div>').text("검색 결과가 없습니다."));
+            }
+            // 담당자는 처음 등록하는 사람일 수 있어 입력한 이름을 그대로 쓸 수 있게 함 (클라이언트는 약어가 필요해 목록에서만 선택)
+            const exact = items.some(function (it) { return (lookupKind === "manager" ? it : it.name) === keyword; });
+            $("#lookupUseTyped").toggleClass("d-none", lookupKind !== "manager" || keyword === "" || exact)
+                .text("'" + keyword + "' 새 담당자로 입력").data("value", keyword);
+        });
+    }
+
+    function applyLookup(value) {
+        lookupTargetRow.find(lookupKind === "manager" ? ".np-manager" : ".np-client").val(value);
+        bootstrap.Modal.getInstance(document.getElementById("lookupModal")).hide();
+    }
+
+    $(document).on("click", "#lookupResults .list-group-item", function () { applyLookup($(this).attr("data-value")); });
+    $("#lookupUseTyped").on("click", function () { applyLookup($(this).data("value")); });
 </script>
 
 </body>

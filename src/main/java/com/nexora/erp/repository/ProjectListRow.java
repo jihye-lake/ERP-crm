@@ -9,13 +9,13 @@ import java.math.BigDecimal;
 public interface ProjectListRow {
     /** 프로젝트 UUID의 문자열 표현 (화면에서 data-id, URL 경로 변수로만 사용) */
     String getId();
+    /** 프로젝트 번호(No). 삭제돼도 당겨지지 않는 영구 번호 */
+    Long getNo();
     String getProjectCode();
-    String getKcode();
     String getTitle();
     String getProjectType();
     String getManager();
     String getClientName();
-    Boolean getRequiresPartnerCode();
     BigDecimal getRevenueAmount();
     BigDecimal getDirectCostTotal();
 }

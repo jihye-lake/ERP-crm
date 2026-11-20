@@ -36,8 +36,8 @@ http://localhost:8080 접속 → `admin` / `admin1234`
 
 | 계정 | 비밀번호 | 역할 | 할 수 있는 것 |
 |---|---|---|---|
-| admin | admin1234 | 관리자(팀장) | 전체 + 매출/Kcode 수정, 삭제, 엑셀 업로드, 변경 이력 |
-| editor | editor1234 | 운영 담당자 | 조회 + 직접비 입력, 통계 |
+| admin | admin1234 | 관리자(팀장) | 전체 + 프로젝트 추가, 매출 수정, 삭제, 엑셀 업로드, 변경 이력 |
+| editor | editor1234 | 운영 담당자 | 조회 + 프로젝트 추가, 직접비 입력, 통계 |
 | partner | partner1234 | 파트너사 | 제한된 목록 조회만 |
 
 <br>
@@ -69,7 +69,7 @@ JUnit 5 / Mockito / Testcontainers, Docker Compose, GitHub Actions
 | IP 자동 로그인 / 평문 비밀번호 | Spring Security 폼 로그인 + BCrypt, 역할(ADMIN/EDITOR/VIEWER) 기반 권한 |
 | 페이지별 if문 권한 체크 | `@PreAuthorize`로 메서드 단위 선언 + 역할별 접근 테스트로 검증 |
 | 직접비 135개 컬럼 | `direct_cost_item` 자식 테이블 (프로젝트당 최대 27행), 항목은 enum으로 관리 |
-| 프로젝트코드에서 매번 `substring`으로 연/월 추출 | `year_code`, `month_code` generated column + 인덱스 |
+| 프로젝트코드에서 매번 `substring`으로 연/월 추출 | `year_code` generated column + `month_code` 컬럼 + 인덱스 |
 | 엑셀 업로드 시 문제 행 무시 | 행별 검증 → 하나라도 문제 있으면 전체 취소하고 행 번호/사유 표시 |
 | 변경 이력 없음 | `project_audit_log` 테이블 + 관리자용 변경 이력 화면 |
 | DEXT.FileUpload + Jet OLEDB | MultipartFile + Apache POI (.xls / .xlsx) |
@@ -99,8 +99,39 @@ JUnit 5 / Mockito / Testcontainers, Docker Compose, GitHub Actions
 
 **연/월을 generated column으로 만든 이유**
 검색이 거의 항상 "몇 년 몇 월 프로젝트"인데, 원래는 `SUBSTRING(프로젝트코드, 2, 2)` 같은 조건이라 인덱스를 못 탔습니다.
-코드 규칙(P + 연도2 + 월2 + 순번)이 바뀔 일이 없어서 DB에서 파생 컬럼으로 만들고 인덱스를 걸었습니다.
-대신 이 형식이 깨지면 검색에 안 잡히기 때문에 엑셀 업로드에서 코드 형식을 꼭 검증하도록 했습니다.
+처음에는 코드 규칙(P + 연도2 + 월2 + 순번)에서 연/월을 둘 다 DB 파생 컬럼으로 만들고 인덱스를 걸었습니다.
+
+**프로젝트코드 형식 변경 (V4)**
+이후 프로젝트코드를 `연도2-종류약어-클라이언트약어-순번2` 형식(예: `26-DSH-BOT-01` = 26년 / 대시보드구축 / 블루오션테크 / 1번째 건)으로 바꿨습니다.
+새 코드에는 월이 없어서 `month_code`는 일반 컬럼으로 바꿔 기존 값을 보존하고, 엑셀 업로드에서는 '월' 열로 따로 받습니다.
+`year_code`는 새 코드 앞 2자리에서 계속 파생합니다. 기존 데이터는 같은 (연도, 종류, 클라이언트) 안에서 시간순으로 순번을 다시 매겼고,
+형식이 깨지면 검색에 안 잡히기 때문에 엑셀 업로드 검증과 DB `CHECK` / `UNIQUE` 제약을 같이 걸었습니다.
+
+| 종류 | 약어 | | 클라이언트 | 약어 |
+|---|---|---|---|---|
+| 대시보드구축 | DSH | | 블루오션테크 | BOT |
+| 플랫폼구축 | PLT | | 파인트리컨설팅 | PTC |
+| 데이터분석 | ANL | | 선샤인헬스케어 | SSH |
+| 컨설팅 | CON | | 선라인마케팅 | SLM |
+| | | | 메트로데이터랩 | MDL |
+| | | | 그린필드전자 | GFE |
+| | | | 노스브릿지시스템즈 | NBS |
+| | | | 클리어웨이브통신 | CWT |
+
+**Kcode 제거 + 프로젝트 번호(No) 추가 (V5)**
+더 이상 쓰지 않는 Kcode(파트너 정산 코드)와, Kcode 입력란 노출 여부만 판단하던 `requires_partner_code` 컬럼을 화면/DB에서 모두 뺐습니다.
+대신 `no` 컬럼을 추가했습니다. 1, 2, 3 ... 순서대로 붙지만 **중간 프로젝트가 삭제돼도 번호를 당기지 않는 영구 번호**입니다
+(1·2·3·4 중 3을 지우면 1·2·4로 남고, 다음 등록은 5번). PostgreSQL `GENERATED ALWAYS AS IDENTITY`라서
+한 번 나간 번호는 재사용되지 않고, 애플리케이션이나 수동 SQL로 지정·변경할 수도 없습니다.
+기존 데이터는 시간순(연도 → 월 → 등록시각 → 프로젝트코드)으로 1번부터 매겼고, 목록 검색창에서 No로도 찾을 수 있습니다.
+엑셀 업로드 양식에서도 Kcode 열이 빠졌습니다(예전 양식을 올리면 바로 안내).
+
+**화면에서 프로젝트 직접 추가 (V6)**
+대시보드 목록 우측 `+` 버튼(관리자·운영 담당자만)으로 한 행을 추가해 제목 / 종류 / 담당자 / 클라이언트 / 매출 / 직접비를 입력합니다.
+프로젝트코드는 서버가 `연도-종류약어-클라이언트약어-순번`으로 자동 생성합니다(같은 조합의 가장 큰 순번 + 1, 연/월은 화면에서 보고 있던 값).
+클라이언트 약어가 필요해서 V4의 CASE 문에만 있던 매핑을 `client` 테이블로 옮겼고, 클라이언트는 이 목록에서만 고를 수 있습니다.
+담당자는 기존 프로젝트의 담당자 중에서 검색하거나, 처음 등록하는 사람이면 입력한 이름을 그대로 쓸 수 있습니다.
+직접비는 27개 항목 중 `9-1. 기타1`에 넣어 두므로, 나중에 직접비 입력 화면에서 항목별로 나누면 됩니다.
 
 **AJAX 응답을 "Y"/"N" 텍스트로 그대로 둔 것**
 REST 스타일 JSON으로 바꾸는 게 더 깔끔하긴 한데, 이번 범위는 서버 이전이라 화면 JS는 최소한으로만 고치고 싶었습니다.
@@ -131,10 +162,12 @@ Testcontainers로 실제 PostgreSQL을 띄워서 돌립니다.
 | 테스트 | 내용 |
 |---|---|
 | `DirectCostServiceTest` | 직접비 금액 계산 규칙 (원래 화면 JS의 계산 방식과 동일한지) |
-| `ExcelProjectImportServiceTest` | 엑셀 정상 업로드 / 빈 행 / 코드 형식·중복·금액 오류 시 전체 취소 |
+| `ExcelProjectImportServiceTest` | 엑셀 정상 업로드 / 빈 행 / 코드 형식·중복·금액 오류 시 전체 취소 / 예전(Kcode) 양식 안내 |
+| `ProjectCreateServiceTest` | 프로젝트 추가: 코드 자동 순번, 직접비·이력 저장, 입력값 오류, 담당자/클라이언트 검색 |
+| `ProjectNoH2Test` | No 시간순 부여, 삭제돼도 번호 유지·재사용 안 함, No 검색 |
 | `SecurityAccessTest` | 역할별 화면·기능 접근 권한, CSRF 토큰 없을 때 거부 |
 | `AuditLogIntegrationTest` | 변경 이력 저장, 값 변화 없으면 미기록, 삭제 후에도 이력 유지, 트랜잭션 밖 호출 차단 |
-| `PostgresIntegrationTest` | Flyway 마이그레이션, generated column, 검색/통계 네이티브 쿼리 (Testcontainers) |
+| `PostgresIntegrationTest` | Flyway 마이그레이션(V4 코드 변환, V5 No/Kcode 제거), generated column, No 영구성·수정 불가, 검색/통계 네이티브 쿼리 (Testcontainers) |
 
 `PostgresIntegrationTest`는 Docker가 필요해서 Docker가 없는 PC에서는 자동으로 skip 되고, GitHub Actions에서는 항상 실행됩니다.
 
@@ -150,7 +183,7 @@ src/main/java/com/nexora/erp
   service/      검색·합계, 직접비 계산, 엑셀 업로드, 변경 이력
   web/          컨트롤러, 폼 DTO
 src/main/resources
-  db/migration/ Flyway 스크립트 (V1 스키마, V2 데모 데이터, V3 변경 이력)
+  db/migration/ Flyway 스크립트 (V1 스키마, V2 데모 데이터, V3 변경 이력, V4 코드 형식, V5 No 추가·Kcode 제거, V6 클라이언트 마스터)
   schema-h2.sql H2 프로필 전용 스키마
   templates/    Thymeleaf 화면
 ```
@@ -164,7 +197,7 @@ src/main/resources
 | monitor.asp (파트너사용 조회) | `DashboardController#monitorDashboard` |
 | DirectCost/index.asp, Check.asp, DirectCost_Pro.asp | `DirectCostController`, `DirectCostService` |
 | Project_Upload.asp | `ExcelProjectImportService` |
-| Project_Delete.asp, Update_Cost.asp, Update_Kcode.asp | `ProjectAdminController` |
+| Project_Delete.asp, Update_Cost.asp | `ProjectAdminController` (Update_Kcode.asp는 V5에서 Kcode와 함께 제거) |
 | extend_session.asp | `SessionController` |
 | (새로 추가) 통계 화면 | `StatisticsController` — 월별/연도별/클라이언트별/항목별 차트 (Chart.js) |
 | (새로 추가) 변경 이력 | `AuditLogController` |

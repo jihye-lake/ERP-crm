@@ -7,7 +7,7 @@
     <div class="doc-card" id="indexC">
         <div class="doc-header">
             <h1 class="doc-title">프로젝트별 직접비 항목</h1>
-            <span id="headerTotal" class="doc-total"></span>
+            <span class="doc-total"><span id="headerTotal"></span><small id="headerTotalKo" class="amount-ko text-end"></small></span>
         </div>
         <div class="doc-subtitle">프로젝트명 : (<span th:text="${project.projectCode}"></span>) <span th:text="${project.title}"></span></div>
 
@@ -34,6 +34,8 @@
                             <td class="v_mid">
                                 <input type="number" step="any" class="form-control calc-input" data-role="unitPrice"
                                        th:field="*{items[__${iStat.index}__].unitPrice}"/>
+                                <small class="amount-ko text-end" data-role="unitPriceKo"
+                                       th:text="${item.unitPrice != null and item.unitPrice.signum() != 0 ? '￦ ' + @money.comma(item.unitPrice) + ' · ' + @money.korean(item.unitPrice) : ''}"></small>
                             </td>
                             <td class="v_mid">
                                 <input type="number" step="any" class="form-control calc-input" data-role="quantity"
@@ -45,7 +47,9 @@
                             </td>
                             <td class="v_mid">
                                 <input type="text" class="form-control text-end" data-role="display" disabled
-                                       th:value="${item.amount != null and item.amount.signum() != 0 ? '￦ ' + #numbers.formatInteger(item.amount, 0) : ''}"/>
+                                       th:value="${item.amount != null and item.amount.signum() != 0 ? '￦ ' + @money.comma(item.amount) : ''}"/>
+                                <small class="amount-ko text-end" data-role="displayKo"
+                                       th:text="${item.amount != null and item.amount.signum() != 0 ? @money.korean(item.amount) : ''}"></small>
                                 <input type="hidden" data-role="amount" th:field="*{items[__${iStat.index}__].amount}"/>
                                 <input type="hidden" th:field="*{items[__${iStat.index}__].category}"/>
                             </td>
@@ -77,10 +81,11 @@
         $('[data-role=amount]').each(function () {
             total += parseFloat($(this).val()) || 0;
         });
-        $('#headerTotal').text('총 직접비 : ￦ ' + total.toLocaleString('ko-KR'));
+        $('#headerTotal').text('총 직접비 : ￦ ' + Money.comma(total));
+        $('#headerTotalKo').text(Money.korean(total));
     }
 
-    $(document).on('keyup', '.calc-input', function () {
+    $(document).on('keyup input', '.calc-input', function () {
         const row = $(this).closest('tr');
         const values = ['unitPrice', 'quantity', 'days'].map(function (role) {
             return parseFloat(row.find('[data-role=' + role + ']').val()) || 0;
@@ -93,7 +98,10 @@
             }
         });
         const amount = allZero ? 0 : product;
-        row.find('[data-role=display]').val('￦ ' + amount.toLocaleString('ko-KR'));
+        row.find('[data-role=display]').val(amount === 0 ? '' : '￦ ' + Money.comma(amount));
+        row.find('[data-role=displayKo]').text(amount === 0 ? '' : Money.korean(amount));
+        const unitPrice = parseFloat(row.find('[data-role=unitPrice]').val()) || 0;
+        row.find('[data-role=unitPriceKo]').text(unitPrice === 0 ? '' : '￦ ' + Money.comma(unitPrice) + ' · ' + Money.korean(unitPrice));
         row.find('[data-role=amount]').val(amount);
         updateGrandTotal();
     });

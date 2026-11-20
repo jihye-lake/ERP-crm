@@ -54,7 +54,7 @@ class AuditLogIntegrationTest {
     void 같은_값으로_저장하면_이력을_남기지_않는다() {
         Project project = anyProject();
 
-        projectService.updateKcode(project.getId(), project.getKcode());
+        projectService.updateRevenueAmount(project.getId(), project.getRevenueAmount());
 
         assertThat(auditLogRepository.findByProjectIdOrderByChangedAtDescIdDesc(project.getId())).isEmpty();
     }
@@ -77,7 +77,7 @@ class AuditLogIntegrationTest {
         // 본 작업 없이 로그만 쌓이거나, 본 작업이 롤백됐는데 로그만 남는 걸 방지 (MANDATORY)
         Project project = anyProject();
 
-        assertThatThrownBy(() -> auditLogService.record(project, AuditAction.KCODE_UPDATE, "a", "b"))
+        assertThatThrownBy(() -> auditLogService.record(project, AuditAction.REVENUE_UPDATE, "a", "b"))
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 

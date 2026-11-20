@@ -67,7 +67,11 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema-h2.sql
-      data-locations: classpath:db/migration/V2__demo_seed.sql
+      data-locations:
+        - classpath:db/migration/V2__demo_seed.sql
+        - classpath:schema-h2-v4-data.sql   # 시드의 옛 프로젝트코드를 새 형식으로 변환 (V4와 동일 규칙)
+        - classpath:schema-h2-v5-data.sql   # Kcode 제거 + No 번호 부여 (V5와 동일 규칙)
+        - classpath:db/migration/V6__client_master.sql   # 클라이언트 마스터 (H2 호환 문법이라 그대로 실행)
       encoding: UTF-8      # Windows + Java 17 기본 문자셋이 MS949라 명시 안 하면 시드 한글 깨짐
   h2:
     console:

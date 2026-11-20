@@ -5,6 +5,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Generated;
+import org.hibernate.generator.EventType;
 import org.springframework.data.domain.Persistable;
 
 import java.math.BigDecimal;
@@ -31,11 +33,18 @@ public class Project implements Persistable<UUID> {
     @Column(columnDefinition = "uuid", updatable = false, nullable = false)
     private UUID id;
 
+    /**
+     * 프로젝트 번호(No). 1, 2, 3 ... 순서대로 DB(IDENTITY)가 매기는 영구 번호.
+     * 중간 프로젝트가 삭제돼도 번호를 당기거나 재사용하지 않는다. (V5 마이그레이션)
+     * 애플리케이션에서는 읽기만 하고, 저장 직후 DB가 만든 값을 다시 읽어온다.
+     */
+    @Generated(event = EventType.INSERT)
+    @Column(name = "no", insertable = false, updatable = false)
+    @Setter(AccessLevel.NONE)
+    private Long no;
+
     @Column(name = "project_code", nullable = false, length = 20)
     private String projectCode;
-
-    @Column(length = 20)
-    private String kcode;
 
     @Column(nullable = false, length = 500)
     private String title;
@@ -55,18 +64,15 @@ public class Project implements Persistable<UUID> {
     @Column(name = "revenue_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal revenueAmount = BigDecimal.ZERO;
 
-    /**
-     * 원본에서 "클라이언트명에 특정 협력사 문자열이 포함되어 있는지"로
-     * Kcode(파트너 정산 코드) 입력란 노출 여부를 판단하던 로직을,
-     * 클라이언트 이름 문자열 매칭 대신 명시적인 플래그로 대체했습니다.
-     */
-    @Column(name = "requires_partner_code", nullable = false)
-    private boolean requiresPartnerCode = false;
-
+    /** 프로젝트코드(예: 26-DSH-BOT-01) 앞 2자리에서 DB가 만드는 generated column */
     @Column(name = "year_code", insertable = false, updatable = false, length = 4)
     private String yearCode;
 
-    @Column(name = "month_code", insertable = false, updatable = false, length = 2)
+    /**
+     * 프로젝트 월("01"~"12"). 예전엔 코드(P26050001)에서 파생했지만
+     * 새 코드 형식에는 월이 없어서 직접 저장한다. (V4 마이그레이션)
+     */
+    @Column(name = "month_code", nullable = false, length = 2)
     private String monthCode;
 
     @Column(name = "created_at", nullable = false, updatable = false)

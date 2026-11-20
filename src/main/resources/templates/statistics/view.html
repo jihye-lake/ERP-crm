@@ -28,12 +28,14 @@
                 <div class="kpi-card">
                     <div class="kpi-card-icon"><i class="fa-solid fa-sack-dollar"></i></div>
                     <div class="kpi-card-label" th:text="${stats.selectedYear} + '년 매출'">연 매출</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(stats.yearRevenue, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(stats.yearRevenue)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(stats.yearRevenue)}"></div>
                 </div>
                 <div class="kpi-card accent-warning">
                     <div class="kpi-card-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
                     <div class="kpi-card-label" th:text="${stats.selectedYear} + '년 직접비'">연 직접비</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(stats.yearDirectCost, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(stats.yearDirectCost)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(stats.yearDirectCost)}"></div>
                 </div>
                 <div class="kpi-card accent-info">
                     <div class="kpi-card-icon"><i class="fa-solid fa-percent"></i></div>
@@ -48,46 +50,50 @@
                 <div class="kpi-card">
                     <div class="kpi-card-icon"><i class="fa-solid fa-bullseye"></i></div>
                     <div class="kpi-card-label">연간 목표</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(stats.targetAmount, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(stats.targetAmount)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(stats.targetAmount)}"></div>
                 </div>
             </div>
 
             <div class="stat-grid">
                 <div class="stat-panel">
                     <div class="stat-panel-title">연간 목표 대비 누계 실적</div>
-                    <div class="gauge-wrap">
+                    <div class="gauge-wrap chart-box">
                         <canvas id="gaugeChart"></canvas>
                         <div class="gauge-value" th:text="${stats.achievementPercent} + '%'">0%</div>
                     </div>
                     <div class="gauge-caption">
-                        목표 ￦<span th:text="${#numbers.formatInteger(stats.targetAmount, 0)}"></span> 중
-                        실적 ￦<span th:text="${#numbers.formatInteger(stats.yearRevenue, 0)}"></span>
+                        목표 ￦<span th:text="${@money.comma(stats.targetAmount)}"></span> 중
+                        실적 ￦<span th:text="${@money.comma(stats.yearRevenue)}"></span>
+                        <small class="amount-ko" th:text="${@money.korean(stats.yearRevenue)} + ' / ' + ${@money.korean(stats.targetAmount)}"></small>
                     </div>
                 </div>
 
                 <div class="stat-panel">
                     <div class="stat-panel-title">클라이언트별 매출 비중</div>
-                    <canvas id="clientChart"></canvas>
+                    <div class="chart-box"><canvas id="clientChart"></canvas></div>
                 </div>
 
                 <div class="stat-panel">
                     <div class="stat-panel-title">프로젝트 종류별 매출 비중</div>
-                    <canvas id="typeChart"></canvas>
+                    <div class="chart-box"><canvas id="typeChart"></canvas></div>
                 </div>
 
                 <div class="stat-panel stat-panel-wide">
-                    <div class="stat-panel-title">월별 매출 / 직접비</div>
-                    <canvas id="monthlyChart"></canvas>
+                    <div class="stat-panel-head">
+                        <div class="stat-panel-title" id="trendTitle">월별 매출 / 직접비</div>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="기간 단위">
+                            <button type="button" class="btn btn-outline-primary active" data-trend="monthly">월별</button>
+                            <button type="button" class="btn btn-outline-primary" data-trend="yearly">연도별</button>
+                        </div>
+                    </div>
+                    <div class="chart-box" id="monthlyBox"><canvas id="monthlyChart"></canvas></div>
+                    <div class="chart-box d-none" id="yearlyBox"><canvas id="yearlyChart"></canvas></div>
                 </div>
 
                 <div class="stat-panel">
                     <div class="stat-panel-title">직접비 항목별 비중</div>
-                    <canvas id="categoryChart"></canvas>
-                </div>
-
-                <div class="stat-panel">
-                    <div class="stat-panel-title">연도별 매출/직접비 추이</div>
-                    <canvas id="yearlyChart"></canvas>
+                    <div class="chart-box"><canvas id="categoryChart"></canvas></div>
                 </div>
             </div>
         </main>
@@ -105,6 +111,12 @@
     const ACCENT = '#0ea5e9';
     const SUCCESS = '#16a34a';
     const WARNING = '#f59e0b';
+    // 모든 차트 툴팁: "매출: ￦ 1,234,000 (백이십삼만사천원)"
+    Chart.defaults.plugins.tooltip.callbacks.label = function (ctx) {
+        const name = ctx.dataset.label || ctx.label || '';
+        return name + ': ￦ ' + Money.comma(ctx.raw) + ' (' + Money.korean(ctx.raw) + ')';
+    };
+
     const PALETTE = ['#4f46e5', '#0ea5e9', '#8b5cf6', '#f59e0b', '#f43f5e', '#16a34a', '#06b6d4', '#a855f7'];
 
     Chart.defaults.font.family = "'Pretendard', -apple-system, sans-serif";
@@ -190,8 +202,10 @@
         }
     });
 
-    // ---- 연도별 매출/직접비 추이 ----
-    new Chart(document.getElementById('yearlyChart'), {
+    // ---- 연도별 매출/직접비 추이 (월별 차트와 같은 패널, 버튼으로 전환) ----
+    // 숨겨진(display:none) 캔버스에 그리면 크기가 0으로 잡히므로 처음 보여줄 때 만든다.
+    let yearlyChart = null;
+    const createYearlyChart = () => new Chart(document.getElementById('yearlyChart'), {
         type: 'bar',
         data: {
             labels: chartData.yearLabels,
@@ -206,6 +220,18 @@
             plugins: {legend: {position: 'top'}}
         }
     });
+
+    const TREND_TITLES = {monthly: '월별 매출 / 직접비', yearly: '연도별 매출 / 직접비 추이'};
+    document.querySelectorAll('[data-trend]').forEach(btn => btn.addEventListener('click', () => {
+        const mode = btn.dataset.trend;
+        document.querySelectorAll('[data-trend]').forEach(b => b.classList.toggle('active', b === btn));
+        document.getElementById('monthlyBox').classList.toggle('d-none', mode !== 'monthly');
+        document.getElementById('yearlyBox').classList.toggle('d-none', mode !== 'yearly');
+        document.getElementById('trendTitle').textContent = TREND_TITLES[mode];
+        if (mode === 'yearly' && !yearlyChart) {
+            yearlyChart = createYearlyChart();
+        }
+    }));
     /*]]>*/
 </script>
 

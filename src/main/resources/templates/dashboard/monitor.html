@@ -22,12 +22,14 @@
                 <div class="kpi-card">
                     <div class="kpi-card-icon"><i class="fa-solid fa-sack-dollar"></i></div>
                     <div class="kpi-card-label" th:text="${form.searchType1} + '년 매출'">연 매출</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.yearRevenue, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(summary.yearRevenue)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(summary.yearRevenue)}"></div>
                 </div>
                 <div class="kpi-card accent-info">
                     <div class="kpi-card-icon"><i class="fa-solid fa-coins"></i></div>
                     <div class="kpi-card-label" th:text="${form.searchType1} + '년 ' + ${form.searchType2} + '월 매출'">월 매출</div>
-                    <div class="kpi-card-value">￦ <span th:text="${#numbers.formatInteger(summary.monthRevenue, 0)}">0</span></div>
+                    <div class="kpi-card-value">￦ <span th:text="${@money.comma(summary.monthRevenue)}">0</span></div>
+                    <div class="amount-ko" th:text="${@money.korean(summary.monthRevenue)}"></div>
                 </div>
             </div>
 
@@ -59,7 +61,7 @@
                         <colgroup><col width="10%"><col width="10%"><col width="*"><col width="20%"><col width="15%"></colgroup>
                         <thead>
                             <tr>
-                                <th class="v_mid">Kcode</th>
+                                <th class="v_mid">No</th>
                                 <th class="v_mid">프로젝트코드</th>
                                 <th class="v_mid">제목</th>
                                 <th class="v_mid">클라이언트</th>
@@ -71,11 +73,11 @@
                                 <td colspan="5">프로젝트 현황이 존재하지 않습니다.</td>
                             </tr>
                             <tr th:each="row : ${page.content}">
-                                <td class="v_mid" th:text="${row.kcode}"></td>
+                                <td class="v_mid text-center" th:text="${row.no}"></td>
                                 <td class="v_mid" th:text="${row.projectCode}"></td>
                                 <td class="v_mid" style="word-break:break-word; white-space:normal;" th:text="${row.title}"></td>
                                 <td class="v_mid" th:text="${row.clientName}"></td>
-                                <td class="v_mid text-end">￦ <span th:text="${#numbers.formatInteger(row.revenueAmount, 0)}"></span></td>
+                                <td class="v_mid text-end" th:insert="~{fragments/money :: amount(${row.revenueAmount})}"></td>
                             </tr>
                         </tbody>
                     </table>

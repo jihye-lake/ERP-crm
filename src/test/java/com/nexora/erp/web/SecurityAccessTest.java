@@ -92,6 +92,9 @@ class SecurityAccessTest {
                 "partner, /monitor,     200",
                 "partner, /statistics,  403",
                 "partner, /audit-logs,  403",
+                "admin,   /projects/upload-template, 200",
+                "editor,  /projects/upload-template, 403",
+                "partner, /projects/upload-template, 403",
         })
         void 역할별_화면_접근(String username, String url, int expectedStatus) throws Exception {
             mvc.perform(get(url).with(user(username).roles(roleOf(username))))
@@ -112,7 +115,7 @@ class SecurityAccessTest {
     }
 
     @Nested
-    @DisplayName("관리자 전용 AJAX (매출/Kcode/삭제)")
+    @DisplayName("관리자 전용 AJAX (매출/삭제)")
     class AdminActions {
 
         @Test
@@ -145,9 +148,32 @@ class SecurityAccessTest {
         @Test
         @WithUserDetails("admin")
         void 관리자는_CSRF_토큰과_함께_수정_가능() throws Exception {
-            mvc.perform(post("/projects/{id}/kcode", anyProjectId).param("Kcode", "K26-TEST").with(csrf()))
+            // 같은 금액으로 저장 (인메모리 DB를 다른 테스트와 공유하므로 데이터는 바꾸지 않음)
+            String sameAmount = projectRepository.findById(anyProjectId).orElseThrow().getRevenueAmount().toPlainString();
+            mvc.perform(post("/projects/{id}/revenue", anyProjectId).param("Cost", sameAmount).with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(content().string("Y"));
+        }
+
+        @Test
+        @WithUserDetails("editor")
+        void 담당자는_프로젝트를_추가할_수_있다() throws Exception {
+            // 권한 통과 여부만 확인 (빈 제목이라 저장되지 않음 → 공유 인메모리 DB를 바꾸지 않음)
+            mvc.perform(post("/projects").with(csrf()).contentType("application/json")
+                            .content("{\"title\":\"\",\"revenueAmount\":1}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("제목을 입력해 주세요."));
+            mvc.perform(get("/projects/clients").param("q", "BOT")).andExpect(status().isOk());
+            mvc.perform(get("/projects/managers").param("q", "김")).andExpect(status().isOk());
+        }
+
+        @Test
+        @WithUserDetails("partner")
+        void 파트너사는_프로젝트를_추가하거나_검색할_수_없다() throws Exception {
+            mvc.perform(post("/projects").with(csrf()).contentType("application/json").content("{}"))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get("/projects/managers")).andExpect(status().isForbidden());
+            mvc.perform(get("/projects/clients")).andExpect(status().isForbidden());
         }
 
         @Test

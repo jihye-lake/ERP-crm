@@ -17,11 +17,21 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     @Query("select p.projectCode from Project p where p.projectCode in :codes")
     List<String> findExistingProjectCodes(@Param("codes") Collection<String> codes);
 
+    /** 프로젝트 추가 시 다음 순번 계산용: "26-DSH-BOT-" 로 시작하는 코드 전부 */
+    @Query("select p.projectCode from Project p where p.projectCode like concat(:prefix, '%')")
+    List<String> findProjectCodesStartingWith(@Param("prefix") String prefix);
+
+    /** 담당자 검색 모달: 지금까지 프로젝트에 등록된 담당자 이름 중 일부 일치 */
+    @Query("select distinct p.manager from Project p " +
+           "where p.manager is not null and p.manager <> '' and lower(p.manager) like lower(concat('%', :keyword, '%')) " +
+           "order by p.manager")
+    List<String> searchManagers(@Param("keyword") String keyword, Pageable pageable);
+
     String LIST_SELECT =
             // UUID를 그대로 반환하면 DB/드라이버에 따라 byte[]로 넘어와 프로젝션 변환이 실패하므로 문자열로 캐스팅
-            "select cast(p.id as varchar) as id,p.project_code as projectCode, p.kcode as kcode, p.title as title, " +
+            "select cast(p.id as varchar) as id,p.no as no, p.project_code as projectCode, p.title as title, " +
             "p.project_type as projectType, p.manager as manager, p.client_name as clientName, " +
-            "p.requires_partner_code as requiresPartnerCode, p.revenue_amount as revenueAmount, " +
+            "p.revenue_amount as revenueAmount, " +
             "coalesce((select sum(d.amount) from direct_cost_item d where d.project_id = p.id), 0) as directCostTotal " +
             "from project p ";
 
@@ -31,11 +41,11 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             nativeQuery = true)
     Page<ProjectListRow> searchByYearMonth(@Param("year") String year, @Param("month") String month, Pageable pageable);
 
-    // ---- 키워드 모드: surType=2, 프로젝트코드/Kcode 검색 (연/월 필터 무시) ----
+    // ---- 키워드 모드: surType=2, 프로젝트코드(부분 일치) / No(정확히 일치) 검색 (연/월 필터 무시) ----
     @Query(value = LIST_SELECT + "where p.project_code ilike concat('%', :keyword, '%') " +
-                   "or p.kcode ilike concat('%', :keyword, '%') order by p.project_code asc",
+                   "or cast(p.no as varchar) = :keyword order by p.project_code asc",
             countQuery = "select count(*) from project p where p.project_code ilike concat('%', :keyword, '%') " +
-                         "or p.kcode ilike concat('%', :keyword, '%')",
+                         "or cast(p.no as varchar) = :keyword",
             nativeQuery = true)
     Page<ProjectListRow> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
@@ -66,12 +76,12 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     BigDecimal sumDirectCostForYearMonthFilter(@Param("year") String year, @Param("month") String month);
 
     @Query(value = "select coalesce(sum(p.revenue_amount), 0) from project p " +
-                   "where p.project_code ilike concat('%', :keyword, '%') or p.kcode ilike concat('%', :keyword, '%')",
+                   "where p.project_code ilike concat('%', :keyword, '%') or cast(p.no as varchar) = :keyword",
             nativeQuery = true)
     BigDecimal sumRevenueForKeywordFilter(@Param("keyword") String keyword);
 
     @Query(value = "select coalesce(sum(d.amount), 0) from direct_cost_item d join project p on p.id = d.project_id " +
-                   "where p.project_code ilike concat('%', :keyword, '%') or p.kcode ilike concat('%', :keyword, '%')",
+                   "where p.project_code ilike concat('%', :keyword, '%') or cast(p.no as varchar) = :keyword",
             nativeQuery = true)
     BigDecimal sumDirectCostForKeywordFilter(@Param("keyword") String keyword);
 

@@ -317,20 +317,6 @@ input, .form-control, .form-select {
     border-top: 2px solid var(--border-color);
 }
 
-.kcode-link {
-    color: var(--color-primary); text-decoration: none !important; cursor: pointer; font-weight: 600;
-    padding: 0.15rem 0.4rem; border-radius: var(--radius-sm); transition: all 0.15s ease;
-}
-.kcode-link:hover { color: var(--color-primary-dark); background-color: var(--color-primary-light); }
-
-.kcode-empty {
-    display: inline-flex; align-items: center; gap: 0.25rem; color: var(--color-primary);
-    background-color: var(--color-primary-light); border: 1px dashed var(--color-primary);
-    border-radius: 999px; padding: 0.15rem 0.65rem; font-size: 0.75rem !important; font-weight: 700;
-    text-decoration: none !important; cursor: pointer; transition: all 0.15s ease;
-}
-.kcode-empty:hover { background-color: var(--color-primary); color: #fff; border-style: solid; }
-
 .session-pill {
     display: inline-flex; align-items: center; gap: 0.5rem; background: var(--bg-page);
     border: 1px solid var(--border-color); border-radius: 999px; padding: 0.3rem 0.4rem 0.3rem 0.75rem;
@@ -343,21 +329,27 @@ input, .form-control, .form-select {
    ============================================================================ */
 .stat-panel {
     background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm); padding: 0.85rem; height: 300px;
+    box-shadow: var(--shadow-sm); padding: 0.85rem; height: 300px; min-width: 0;
     display: flex; flex-direction: column; text-align: left;
 }
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 .stat-panel-wide { grid-column: span 2; }
-.stat-panel-title { font-size: 0.8rem !important; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; }
-.stat-panel canvas { flex: 1; width: 100% !important; height: 100% !important; }
+.stat-panel-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.stat-panel-head .stat-panel-title { margin-bottom: 0; }
+.stat-panel-head .btn { font-size: 0.72rem !important; padding: 0.15rem 0.6rem; }
+.stat-panel-title { flex: 0 0 auto; font-size: 0.8rem !important; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; }
+/* Chart.js 반응형은 "캔버스만 들어 있는 position:relative 박스" 크기에 맞춰 그린다.
+   캔버스 크기를 CSS로 강제하거나 flex 항목으로 두면 캔버스가 패널을 밀어내 밖으로 넘친다.
+   min-height:0 이 없으면 flex 항목이 내용(캔버스) 높이보다 줄어들지 않아 역시 넘친다. */
+.chart-box { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; }
 
-.gauge-wrap { position: relative; flex: 1; }
-.gauge-wrap canvas { width: 100% !important; height: 100% !important; }
+.gauge-wrap { overflow: hidden; }
 .gauge-value {
-    position: absolute; left: 50%; bottom: 28%; transform: translateX(-50%);
-    font-size: 1.6rem !important; font-weight: 800; color: var(--text-primary);
+    position: absolute; left: 50%; bottom: 0.25rem; transform: translateX(-50%);
+    font-size: 1.6rem !important; font-weight: 800; line-height: 1; color: var(--text-primary);
 }
-.gauge-caption { font-size: 0.75rem !important; color: var(--text-secondary); text-align: center; margin-top: 0.25rem; }
+.gauge-caption { flex: 0 0 auto; font-size: 0.75rem !important; line-height: 1.35; color: var(--text-secondary); text-align: center; margin-top: 0.35rem; }
+.gauge-caption .amount-ko { margin-top: 0; }
 
 @media (max-width: 1100px) {
     .stat-grid { grid-template-columns: repeat(2, 1fr); }
@@ -389,3 +381,11 @@ input, .form-control, .form-select {
     .app-content { padding: 1.1rem; }
     .stat-grid { grid-template-columns: 1fr; }
 }
+
+/* 금액 아래 작은 한글 금액 (일억구천이백삼십만원) */
+.amount-ko {
+    display: block; margin-top: 0.1rem;
+    font-size: 0.7rem !important; font-weight: 400; line-height: 1.25;
+    color: var(--text-secondary); overflow-wrap: anywhere;
+}
+.kpi-card .amount-ko { margin-top: 0.15rem; }

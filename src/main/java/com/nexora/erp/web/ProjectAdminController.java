@@ -2,8 +2,12 @@ package com.nexora.erp.web;
 
 import com.nexora.erp.service.ExcelImportResult;
 import com.nexora.erp.service.ExcelProjectImportService;
+import com.nexora.erp.service.ExcelTemplateService;
 import com.nexora.erp.service.ProjectService;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -16,10 +20,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
- * 원본 Project_Upload.asp / Project_Delete.asp / Update_Cost.asp / Update_Kcode.asp에 대응하는
+ * 원본 Project_Upload.asp / Project_Delete.asp / Update_Cost.asp에 대응하는
  * 관리자 전용(팀장, ADMIN) 액션 엔드포인트. 프런트엔드 JS와의 호환을 위해
  * 원본과 동일하게 "Y" / "N" 텍스트 응답 계약을 유지합니다.
  * <p>
@@ -33,18 +38,37 @@ public class ProjectAdminController {
 
     private final ProjectService projectService;
     private final ExcelProjectImportService excelProjectImportService;
+    private final ExcelTemplateService excelTemplateService;
 
-    public ProjectAdminController(ProjectService projectService, ExcelProjectImportService excelProjectImportService) {
+    public ProjectAdminController(ProjectService projectService, ExcelProjectImportService excelProjectImportService,
+                                  ExcelTemplateService excelTemplateService) {
         this.projectService = projectService;
         this.excelProjectImportService = excelProjectImportService;
+        this.excelTemplateService = excelTemplateService;
+    }
+
+    /** 일괄 업로드용 엑셀 양식 다운로드 */
+    @GetMapping("/projects/upload-template")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> uploadTemplate() throws IOException {
+        byte[] body = excelTemplateService.projectUploadTemplate();
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("프로젝트_업로드_양식.xlsx", StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(body);
     }
 
     /** 원본 Project_Upload.asp */
     @PostMapping("/projects/upload")
     @PreAuthorize("hasRole('ADMIN')")
-    public String upload(@RequestParam("Project_Files") MultipartFile file, RedirectAttributes redirect) {
+    public String upload(@RequestParam("Project_Files") MultipartFile file,
+                         @RequestParam(value = "month", required = false) String month,
+                         RedirectAttributes redirect) {
         try {
-            ExcelImportResult result = excelProjectImportService.importFrom(file);
+            ExcelImportResult result = excelProjectImportService.importFrom(file, month);
             redirect.addFlashAttribute("importResult", result);
         } catch (IOException | UnsupportedFileFormatException | EmptyFileException e) {
             // 엑셀이 아니거나 깨진 파일 (POI가 읽지 못함)
@@ -81,13 +105,5 @@ public class ProjectAdminController {
         } catch (NumberFormatException e) {
             return "N";
         }
-    }
-
-    /** 원본 Update_Kcode.asp */
-    @PostMapping(value = "/projects/{id}/kcode", produces = MediaType.TEXT_PLAIN_VALUE)
-    @PreAuthorize("hasRole('ADMIN')")
-    @ResponseBody
-    public String updateKcode(@PathVariable UUID id, @RequestParam("Kcode") String kcode) {
-        return projectService.updateKcode(id, kcode.toUpperCase()) ? "Y" : "N";
     }
 }

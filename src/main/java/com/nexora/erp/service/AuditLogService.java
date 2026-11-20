@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Objects;
 
 /**
- * 매출/Kcode/직접비 등 정산에 영향 주는 변경을 기록.
+ * 매출/직접비 등 정산에 영향 주는 변경을 기록.
  * 호출하는 쪽 트랜잭션에 같이 묶이게 MANDATORY로 둠 → 본 작업이 롤백되면 로그도 같이 롤백.
  */
 @Service

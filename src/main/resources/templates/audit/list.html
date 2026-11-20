@@ -10,7 +10,7 @@
         <header class="app-topbar">
             <div>
                 <h1 class="app-page-title">변경 이력</h1>
-                <div class="app-page-subtitle">매출 · Kcode · 직접비 · 삭제 · 업로드 기록</div>
+                <div class="app-page-subtitle">매출 · 직접비 · 삭제 · 업로드 기록</div>
             </div>
             <div class="app-topbar-actions">
                 <div th:replace="~{fragments/session-timer :: markup}"></div>
@@ -56,8 +56,14 @@
                                 <td class="v_mid" th:text="${#temporals.format(log.changedAt, 'yyyy-MM-dd HH:mm:ss')}"></td>
                                 <td class="v_mid" th:text="${log.projectCode}"></td>
                                 <td class="v_mid" th:text="${log.action.label}"></td>
-                                <td class="v_mid" style="word-break:break-word; white-space:normal;" th:text="${log.oldValue}"></td>
-                                <td class="v_mid" style="word-break:break-word; white-space:normal;" th:text="${log.newValue}"></td>
+                                <td class="v_mid" style="word-break:break-word; white-space:normal;">
+                                    <span th:text="${@money.auditValue(log.oldValue)}"></span>
+                                    <small class="amount-ko" th:if="${@money.auditKorean(log.oldValue) != null}" th:text="${@money.auditKorean(log.oldValue)}"></small>
+                                </td>
+                                <td class="v_mid" style="word-break:break-word; white-space:normal;">
+                                    <span th:text="${@money.auditValue(log.newValue)}"></span>
+                                    <small class="amount-ko" th:if="${@money.auditKorean(log.newValue) != null}" th:text="${@money.auditKorean(log.newValue)}"></small>
+                                </td>
                                 <td class="v_mid" th:text="${log.changedBy}"></td>
                             </tr>
                         </tbody>

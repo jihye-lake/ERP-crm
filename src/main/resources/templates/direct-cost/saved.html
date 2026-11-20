@@ -4,7 +4,8 @@
 <body>
 <script th:inline="javascript">
     /*<![CDATA[*/
-    alert("저장 되었습니다. 총 직접비: ￦ " + (/*[[${total}]]*/ 0).toLocaleString('ko-KR'));
+    const savedTotal = /*[[${total}]]*/ 0;
+    alert("저장 되었습니다. 총 직접비: ￦ " + Money.comma(savedTotal) + " (" + Money.korean(savedTotal) + ")");
     if (window.opener && !window.opener.closed) {
         window.opener.location.reload();
     }

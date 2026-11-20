@@ -94,17 +94,6 @@ public class ProjectService {
     }
 
     @Transactional
-    public boolean updateKcode(UUID id, String kcode) {
-        return projectRepository.findById(id)
-                .map(project -> {
-                    auditLogService.record(project, AuditAction.KCODE_UPDATE, project.getKcode(), kcode);
-                    project.setKcode(kcode);
-                    return true;
-                })
-                .orElse(false);
-    }
-
-    @Transactional
     public Project save(Project project) {
         return projectRepository.save(project);
     }

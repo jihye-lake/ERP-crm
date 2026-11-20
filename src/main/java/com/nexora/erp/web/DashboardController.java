@@ -2,6 +2,7 @@ package com.nexora.erp.web;
 
 import com.nexora.erp.domain.AdminAccount;
 import com.nexora.erp.domain.AdminRole;
+import com.nexora.erp.domain.ProjectType;
 import com.nexora.erp.repository.ProjectListRow;
 import com.nexora.erp.service.CurrentUserService;
 import com.nexora.erp.service.ProjectService;
@@ -68,6 +69,9 @@ public class DashboardController {
         model.addAttribute("currentAdmin", currentAdmin);
         model.addAttribute("isAdmin", currentAdmin.getRole() == AdminRole.ADMIN);
         model.addAttribute("canManageCost", currentAdmin.getRole() != AdminRole.VIEWER);
+        model.addAttribute("canCreateProject",
+                currentAdmin.getRole() == AdminRole.ADMIN || currentAdmin.getRole() == AdminRole.EDITOR);
+        model.addAttribute("projectTypes", ProjectType.values());
         model.addAttribute("page", page);
         model.addAttribute("summary", summary);
         model.addAttribute("monthOptions", MONTH_OPTIONS);
